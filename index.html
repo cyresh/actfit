@@ -268,6 +268,85 @@
     margin-right:8px;
     vertical-align:middle;
   }
+
+  /* ---------- stage 3: dashboard ---------- */
+  .dashboard{
+    width:100%;
+    max-width:960px;
+    margin:0 20px 40px;
+  }
+  .filter-bar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:24px;
+    margin-bottom:24px;
+  }
+  .segmented{
+    display:inline-flex;
+    border:1px solid var(--line);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .segmented button{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--muted);
+    border:none;
+    padding:9px 16px;
+    cursor:pointer;
+    transition:background .15s ease,color .15s ease;
+  }
+  .segmented button + button{ border-left:1px solid var(--line); }
+  .segmented button.active{
+    background:var(--route);
+    color:var(--ink);
+  }
+  .segmented button:not(.active):hover{ color:var(--chalk); }
+
+  .overview-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+  }
+  .overview-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:22px 20px;
+  }
+  .overview-value{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-weight:800;
+    font-size:38px;
+    line-height:1;
+    color:var(--chalk);
+  }
+  .overview-value .unit{
+    font-size:16px;
+    font-weight:600;
+    color:var(--muted);
+    margin-left:4px;
+  }
+  .overview-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-top:8px;
+  }
+  .empty-dash{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    color:var(--muted);
+    padding:20px 0;
+  }
+  @media (max-width:640px){
+    .overview-grid{ grid-template-columns:repeat(2,1fr); }
+  }
 </style>
 </head>
 <body>
@@ -336,9 +415,46 @@
     </div>
   </div>
 
+  <!-- ============ STAGE 3: OVERVIEW DASHBOARD ============ -->
+  <div class="dashboard hidden" id="dashboard">
+    <div class="filter-bar">
+      <div class="segmented" id="sportFilter">
+        <button data-sport="all" class="active">All</button>
+        <button data-sport="run">Run</button>
+        <button data-sport="ride">Ride</button>
+      </div>
+      <div class="segmented" id="rangeFilter">
+        <button data-range="week">Week</button>
+        <button data-range="month">Month</button>
+        <button data-range="year">Year</button>
+        <button data-range="all" class="active">All time</button>
+      </div>
+    </div>
+
+    <div class="overview-grid" id="overviewGrid">
+      <div class="overview-card">
+        <div class="overview-value" id="ovDistance">0<span class="unit">km</span></div>
+        <div class="overview-label">Distance</div>
+      </div>
+      <div class="overview-card">
+        <div class="overview-value" id="ovElevation">0<span class="unit">m</span></div>
+        <div class="overview-label">Elevation gain</div>
+      </div>
+      <div class="overview-card">
+        <div class="overview-value" id="ovTime">0<span class="unit">h</span></div>
+        <div class="overview-label">Moving time</div>
+      </div>
+      <div class="overview-card">
+        <div class="overview-value" id="ovCount">0</div>
+        <div class="overview-label">Activities</div>
+      </div>
+    </div>
+
+    <p class="empty-dash hidden" id="emptyDash">No activities in this range yet — try a wider filter, or hit Sync.</p>
+  </div>
+
   <p class="footer-note">
-    Stage 2 of 6 — activity fetch &amp; local cache. Runs and rides are pulled from Strava and cached in this
-    browser's localStorage; nothing is stored server-side. See <code>CONFIG</code> at the top of the script
+    Stage 3 of 6 — overview dashboard. Distance, elevation, time and activity count computed live from what's cached locally, filterable by sport and time range. See <code>CONFIG</code> at the top of the script
     below to point this at your own Strava API app and Worker.
   </p>
 
@@ -565,6 +681,7 @@ function showConnected(athlete) {
   document.getElementById("athleteMeta").textContent = meta || "Location not set";
   refreshStatsFromCache();
   refreshStaleBanner();
+  renderDashboard();
 }
 
 function refreshStatsFromCache() {
@@ -622,12 +739,96 @@ async function runSync() {
     refreshStatsFromCache();
     refreshStaleBanner();
     statusText.textContent = `SYNCED — ${result.newCount} new, ${result.total} total`;
+    renderDashboard();
   } catch (e) {
     statusText.textContent = "Sync failed — check connection and try again";
   } finally {
     syncBtn.disabled = false;
     syncBtn.textContent = originalLabel;
   }
+}
+
+/* =========================================================
+   Stage 3: overview dashboard
+   ========================================================= */
+const dashState = { sport: "all", range: "all" };
+
+function rangeStartDate(range) {
+  const now = new Date();
+  if (range === "week") return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  if (range === "month") return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  if (range === "year") return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  return null; // all time
+}
+
+function filteredActivities() {
+  const all = Object.values(loadActivities());
+  const start = rangeStartDate(dashState.range);
+  return all.filter((a) => {
+    if (dashState.sport !== "all" && a.sport !== dashState.sport) return false;
+    if (start && new Date(a.start_date_local) < start) return false;
+    return true;
+  });
+}
+
+function formatKm(meters) {
+  return (meters / 1000).toFixed(1);
+}
+function formatHoursMinutes(seconds) {
+  const totalMins = Math.round(seconds / 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function renderDashboard() {
+  const dashboard = document.getElementById("dashboard");
+  const all = Object.values(loadActivities());
+  if (all.length === 0) {
+    dashboard.classList.add("hidden");
+    return;
+  }
+  dashboard.classList.remove("hidden");
+
+  const list = filteredActivities();
+  const emptyDash = document.getElementById("emptyDash");
+  const grid = document.getElementById("overviewGrid");
+
+  if (list.length === 0) {
+    grid.classList.add("hidden");
+    emptyDash.classList.remove("hidden");
+    return;
+  }
+  grid.classList.remove("hidden");
+  emptyDash.classList.add("hidden");
+
+  const totalDistance = list.reduce((sum, a) => sum + (a.distance || 0), 0);
+  const totalElevation = list.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
+  const totalTime = list.reduce((sum, a) => sum + (a.moving_time || 0), 0);
+
+  document.getElementById("ovDistance").innerHTML = `${formatKm(totalDistance)}<span class="unit">km</span>`;
+  document.getElementById("ovElevation").innerHTML = `${Math.round(totalElevation)}<span class="unit">m</span>`;
+  document.getElementById("ovTime").textContent = formatHoursMinutes(totalTime);
+  document.getElementById("ovCount").textContent = list.length;
+}
+
+function initDashboardFilters() {
+  document.querySelectorAll("#sportFilter button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#sportFilter button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      dashState.sport = btn.dataset.sport;
+      renderDashboard();
+    });
+  });
+  document.querySelectorAll("#rangeFilter button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#rangeFilter button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      dashState.range = btn.dataset.range;
+      renderDashboard();
+    });
+  });
 }
 
 /* =========================================================
@@ -678,6 +879,7 @@ document.getElementById("disconnectBtn").addEventListener("click", () => {
 });
 document.getElementById("syncBtn").addEventListener("click", runSync);
 document.getElementById("staleSyncBtn").addEventListener("click", runSync);
+initDashboardFilters();
 
 boot();
 </script>

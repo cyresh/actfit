@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
     --ink:#12171A;
@@ -347,6 +348,57 @@
   @media (max-width:640px){
     .overview-grid{ grid-template-columns:repeat(2,1fr); }
   }
+
+  /* ---------- stage 4: trends & heatmap ---------- */
+  .section-title{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    margin:36px 0 14px;
+  }
+  .chart-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .chart-card canvas{ max-height:220px; }
+  .pace-hint{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    padding:8px 0 0;
+  }
+
+  .heatmap-scroll{
+    overflow-x:auto;
+    padding-bottom:6px;
+  }
+  .heatmap-grid{
+    display:grid;
+    grid-auto-flow:column;
+    grid-template-rows:repeat(7,11px);
+    gap:3px;
+    width:max-content;
+  }
+  .heatmap-cell{
+    width:11px;height:11px;
+    border-radius:2px;
+    background:var(--line);
+  }
+  .heatmap-legend{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+  .heatmap-legend .heatmap-cell{ width:10px; height:10px; }
 </style>
 </head>
 <body>
@@ -451,6 +503,33 @@
     </div>
 
     <p class="empty-dash hidden" id="emptyDash">No activities in this range yet — try a wider filter, or hit Sync.</p>
+
+    <div class="section-title">Weekly volume — last 12 weeks</div>
+    <div class="chart-card">
+      <canvas id="volumeChart" height="220"></canvas>
+    </div>
+
+    <div class="section-title">Pace / speed trend — last 12 weeks</div>
+    <div class="chart-card">
+      <canvas id="paceChart" height="220"></canvas>
+      <p class="pace-hint hidden" id="paceHint">Select Run or Ride above to see a pace/speed trend — "All" mixes units so it's hidden.</p>
+    </div>
+
+    <div class="section-title">Activity calendar — last 12 months</div>
+    <div class="chart-card">
+      <div class="heatmap-scroll">
+        <div class="heatmap-grid" id="heatmapGrid"></div>
+      </div>
+      <div class="heatmap-legend">
+        <span>Less</span>
+        <span class="heatmap-cell" style="background:var(--line)"></span>
+        <span class="heatmap-cell" style="background:rgba(99,194,155,0.35)"></span>
+        <span class="heatmap-cell" style="background:rgba(99,194,155,0.6)"></span>
+        <span class="heatmap-cell" style="background:rgba(99,194,155,0.85)"></span>
+        <span class="heatmap-cell" style="background:var(--contour)"></span>
+        <span>More</span>
+      </div>
+    </div>
   </div>
 
   <p class="footer-note">
@@ -797,6 +876,8 @@ function renderDashboard() {
   if (list.length === 0) {
     grid.classList.add("hidden");
     emptyDash.classList.remove("hidden");
+    renderTrendCharts();
+    renderHeatmap();
     return;
   }
   grid.classList.remove("hidden");
@@ -810,6 +891,9 @@ function renderDashboard() {
   document.getElementById("ovElevation").innerHTML = `${Math.round(totalElevation)}<span class="unit">m</span>`;
   document.getElementById("ovTime").textContent = formatHoursMinutes(totalTime);
   document.getElementById("ovCount").textContent = list.length;
+
+  renderTrendCharts();
+  renderHeatmap();
 }
 
 function initDashboardFilters() {
@@ -829,6 +913,174 @@ function initDashboardFilters() {
       renderDashboard();
     });
   });
+}
+
+/* =========================================================
+   Stage 4: trend charts + activity heatmap
+   ========================================================= */
+let volumeChartInstance = null;
+let paceChartInstance = null;
+
+function startOfWeek(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0 = Sunday
+  const diff = (day === 0 ? -6 : 1) - day; // Monday as start
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function last12WeekBuckets() {
+  const buckets = [];
+  const thisWeekStart = startOfWeek(new Date());
+  for (let i = 11; i >= 0; i--) {
+    const start = new Date(thisWeekStart.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+    buckets.push(start);
+  }
+  return buckets;
+}
+
+function weekLabel(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function renderTrendCharts() {
+  if (typeof Chart === "undefined") return; // CDN blocked/offline — fail quietly
+
+  const sportFiltered = Object.values(loadActivities()).filter(
+    (a) => dashState.sport === "all" || a.sport === dashState.sport
+  );
+
+  const buckets = last12WeekBuckets();
+  const labels = buckets.map(weekLabel);
+  const distancePerWeek = buckets.map(() => 0);
+  const timePerWeek = buckets.map(() => 0);
+  const distPerWeekForPace = buckets.map(() => 0);
+
+  sportFiltered.forEach((a) => {
+    const d = new Date(a.start_date_local);
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      if (d >= buckets[i]) {
+        distancePerWeek[i] += (a.distance || 0) / 1000; // km
+        timePerWeek[i] += a.moving_time || 0;
+        distPerWeekForPace[i] += a.distance || 0;
+        break;
+      }
+    }
+  });
+
+  const volCtx = document.getElementById("volumeChart");
+  if (volumeChartInstance) volumeChartInstance.destroy();
+  volumeChartInstance = new Chart(volCtx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "km / week",
+        data: distancePerWeek.map((v) => Math.round(v * 10) / 10),
+        backgroundColor: "#FF5A36",
+        borderRadius: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(238,241,236,0.06)" } },
+      },
+    },
+  });
+
+  const paceHint = document.getElementById("paceHint");
+  const paceCanvas = document.getElementById("paceChart");
+  if (dashState.sport === "all") {
+    paceCanvas.classList.add("hidden");
+    paceHint.classList.remove("hidden");
+    if (paceChartInstance) { paceChartInstance.destroy(); paceChartInstance = null; }
+    return;
+  }
+  paceCanvas.classList.remove("hidden");
+  paceHint.classList.add("hidden");
+
+  let paceData, paceLabel;
+  if (dashState.sport === "run") {
+    // min per km, lower = faster
+    paceData = buckets.map((_, i) => {
+      if (distPerWeekForPace[i] === 0) return null;
+      const minPerKm = (timePerWeek[i] / 60) / (distPerWeekForPace[i] / 1000);
+      return Math.round(minPerKm * 100) / 100;
+    });
+    paceLabel = "min/km";
+  } else {
+    // km/h avg speed
+    paceData = buckets.map((_, i) => {
+      if (timePerWeek[i] === 0) return null;
+      const kmh = (distPerWeekForPace[i] / 1000) / (timePerWeek[i] / 3600);
+      return Math.round(kmh * 10) / 10;
+    });
+    paceLabel = "km/h";
+  }
+
+  if (paceChartInstance) paceChartInstance.destroy();
+  paceChartInstance = new Chart(paceCanvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: paceLabel,
+        data: paceData,
+        borderColor: "#63C29B",
+        backgroundColor: "rgba(99,194,155,0.15)",
+        fill: true,
+        tension: 0.35,
+        spanGaps: true,
+        pointRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(238,241,236,0.06)" } },
+      },
+    },
+  });
+}
+
+function renderHeatmap() {
+  const grid = document.getElementById("heatmapGrid");
+  grid.innerHTML = "";
+
+  const sportFiltered = Object.values(loadActivities()).filter(
+    (a) => dashState.sport === "all" || a.sport === dashState.sport
+  );
+
+  const byDay = {};
+  sportFiltered.forEach((a) => {
+    const key = a.start_date_local.slice(0, 10); // YYYY-MM-DD
+    byDay[key] = (byDay[key] || 0) + (a.distance || 0);
+  });
+
+  const maxDist = Math.max(1, ...Object.values(byDay));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = startOfWeek(new Date(today.getTime() - 371 * 24 * 60 * 60 * 1000));
+
+  for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    const dist = byDay[key] || 0;
+    const cell = document.createElement("div");
+    cell.className = "heatmap-cell";
+    cell.title = `${key}: ${(dist / 1000).toFixed(1)} km`;
+    if (dist > 0) {
+      const ratio = dist / maxDist;
+      const alpha = 0.3 + ratio * 0.7;
+      cell.style.background = ratio > 0.85 ? "var(--contour)" : `rgba(99,194,155,${alpha.toFixed(2)})`;
+    }
+    grid.appendChild(cell);
+  }
 }
 
 /* =========================================================

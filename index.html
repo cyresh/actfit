@@ -210,6 +210,64 @@
     font-family:'JetBrains Mono',monospace;
     font-size:13px;
   }
+
+  /* ---------- stage 2: sync ---------- */
+  .stale-banner{
+    width:100%;
+    max-width:960px;
+    margin:0 20px 20px;
+    padding:12px 16px;
+    background:rgba(255,90,54,0.08);
+    border:1px solid var(--route-dim);
+    border-radius:4px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--route);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .sync-status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .stat-row{
+    display:flex;
+    gap:24px;
+    margin-top:18px;
+  }
+  .stat{
+    flex:1;
+  }
+  .stat-value{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-weight:700;
+    font-size:32px;
+    line-height:1;
+    color:var(--chalk);
+  }
+  .stat-value.accent{ color:var(--contour); }
+  .stat-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-top:6px;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .spinner{
+    display:inline-block;
+    width:12px;height:12px;
+    border:2px solid var(--line);
+    border-top-color:var(--route);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+    margin-right:8px;
+    vertical-align:middle;
+  }
 </style>
 </head>
 <body>
@@ -234,6 +292,12 @@
     </svg>
   </div>
 
+  <!-- ============ STALE DATA BANNER ============ -->
+  <div class="stale-banner hidden" id="staleBanner">
+    <span id="staleBannerText">Data hasn't been synced in a while.</span>
+    <button class="btn btn-ghost" id="staleSyncBtn" style="padding:6px 14px;font-size:12px;">Sync now</button>
+  </div>
+
   <!-- ============ CONNECTED STATE ============ -->
   <div class="card hidden" id="connectedCard">
     <div class="profile-row">
@@ -244,10 +308,26 @@
       </div>
       <span class="status-pill">● connected</span>
     </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-value" id="statRuns">—</div>
+        <div class="stat-label">Runs cached</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value accent" id="statRides">—</div>
+        <div class="stat-label">Rides cached</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-label">Total activities</div>
+      </div>
+    </div>
+
     <div class="divider"></div>
     <div class="placeholder-row">
-      <span>ACTIVITY SYNC</span>
-      <button class="btn btn-ghost" id="syncBtn" disabled>Coming in Stage 2</button>
+      <span id="syncStatusText">ACTIVITY SYNC</span>
+      <button class="btn btn-ghost" id="syncBtn">Sync now</button>
     </div>
     <div class="divider"></div>
     <div class="placeholder-row">
@@ -257,8 +337,9 @@
   </div>
 
   <p class="footer-note">
-    Stage 1 of 6 — auth shell only. Tokens live in this browser's localStorage and never touch a database.
-    See <code>CONFIG</code> at the top of the script below to point this at your own Strava API app and Worker.
+    Stage 2 of 6 — activity fetch &amp; local cache. Runs and rides are pulled from Strava and cached in this
+    browser's localStorage; nothing is stored server-side. See <code>CONFIG</code> at the top of the script
+    below to point this at your own Strava API app and Worker.
   </p>
 
 <script>
@@ -267,12 +348,17 @@
    ========================================================= */
 const CONFIG = {
   STRAVA_CLIENT_ID: "266170",
-  WORKER_URL: "https://actfit-oauth.cysuresh.workers.dev", // <-- update after `wrangler deploy`
+  WORKER_URL: "https://actfit-oauth.cysuresh.workers.dev",
   REDIRECT_URI: window.location.origin + window.location.pathname,
   SCOPE: "read,activity:read_all",
 };
 
 const STORAGE_KEY = "strava_dash_tokens";
+const ACTIVITIES_KEY = "strava_dash_activities";
+const LAST_SYNC_KEY = "strava_dash_last_sync";
+const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
+const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
+const RIDE_TYPES = new Set(["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]);
 
 /* =========================================================
    Token storage helpers
@@ -286,6 +372,24 @@ function loadTokens() {
 }
 function clearTokens() {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+/* =========================================================
+   Activity cache helpers
+   ========================================================= */
+function loadActivities() {
+  const raw = localStorage.getItem(ACTIVITIES_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+function saveActivities(byId) {
+  localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(byId));
+}
+function getLastSync() {
+  const raw = localStorage.getItem(LAST_SYNC_KEY);
+  return raw ? parseInt(raw, 10) : null;
+}
+function setLastSync(ts) {
+  localStorage.setItem(LAST_SYNC_KEY, String(ts));
 }
 
 /* =========================================================
@@ -362,6 +466,82 @@ async function fetchAthlete(accessToken) {
 }
 
 /* =========================================================
+   Stage 2: fetch activities from Strava, paginated
+   ========================================================= */
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function fetchActivityPage(accessToken, page, perPage) {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (res.status === 429) {
+    // Rate limited — Strava sends limit info in headers, back off and retry once.
+    const retryAfter = parseInt(res.headers.get("Retry-After") || "15", 10);
+    await sleep(retryAfter * 1000);
+    return fetchActivityPage(accessToken, page, perPage);
+  }
+  if (!res.ok) throw new Error(`Activity fetch failed (page ${page}): ${res.status}`);
+  return res.json();
+}
+
+async function syncActivities(onProgress) {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error("Not connected");
+
+  const cached = loadActivities();
+  const perPage = 100;
+  let page = 1;
+  let fetchedCount = 0;
+  let newCount = 0;
+
+  while (true) {
+    onProgress?.(`Fetching page ${page}…`);
+    const batch = await fetchActivityPage(accessToken, page, perPage);
+    if (!batch.length) break;
+
+    for (const act of batch) {
+      fetchedCount++;
+      if (!RUN_TYPES.has(act.type) && !RIDE_TYPES.has(act.type)) continue; // skip non run/ride sports
+      if (!cached[act.id]) newCount++;
+      cached[act.id] = {
+        id: act.id,
+        name: act.name,
+        type: act.type,
+        sport: RUN_TYPES.has(act.type) ? "run" : "ride",
+        distance: act.distance,           // meters
+        moving_time: act.moving_time,     // seconds
+        elapsed_time: act.elapsed_time,
+        total_elevation_gain: act.total_elevation_gain, // meters
+        start_date: act.start_date,
+        start_date_local: act.start_date_local,
+        average_speed: act.average_speed, // m/s
+        max_speed: act.max_speed,
+        average_heartrate: act.average_heartrate ?? null,
+        max_heartrate: act.max_heartrate ?? null,
+        map_summary_polyline: act.map?.summary_polyline || null,
+      };
+    }
+
+    if (batch.length < perPage) break; // last page
+    page++;
+    await sleep(250); // gentle pacing to stay well under rate limits
+  }
+
+  saveActivities(cached);
+  setLastSync(Date.now());
+
+  return {
+    total: Object.keys(cached).length,
+    runs: Object.values(cached).filter((a) => a.sport === "run").length,
+    rides: Object.values(cached).filter((a) => a.sport === "ride").length,
+    fetchedCount,
+    newCount,
+  };
+}
+
+/* =========================================================
    UI state
    ========================================================= */
 function showLanding(errorMsg) {
@@ -383,6 +563,71 @@ function showConnected(athlete) {
   document.getElementById("athleteName").textContent = `${athlete.firstname || ""} ${athlete.lastname || ""}`.trim() || "Athlete";
   const meta = [athlete.city, athlete.state, athlete.country].filter(Boolean).join(", ");
   document.getElementById("athleteMeta").textContent = meta || "Location not set";
+  refreshStatsFromCache();
+  refreshStaleBanner();
+}
+
+function refreshStatsFromCache() {
+  const cached = Object.values(loadActivities());
+  const runs = cached.filter((a) => a.sport === "run").length;
+  const rides = cached.filter((a) => a.sport === "ride").length;
+  document.getElementById("statRuns").textContent = runs;
+  document.getElementById("statRides").textContent = rides;
+  document.getElementById("statTotal").textContent = cached.length;
+
+  const last = getLastSync();
+  document.getElementById("syncStatusText").textContent = last
+    ? `LAST SYNCED ${formatRelativeTime(last)}`
+    : "NOT SYNCED YET";
+}
+
+function formatRelativeTime(ts) {
+  const diffMs = Date.now() - ts;
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function refreshStaleBanner() {
+  const banner = document.getElementById("staleBanner");
+  const last = getLastSync();
+  if (!last) {
+    banner.classList.remove("hidden");
+    document.getElementById("staleBannerText").textContent = "No data synced yet — hit Sync to pull your activities.";
+    return;
+  }
+  if (Date.now() - last > STALE_AFTER_MS) {
+    banner.classList.remove("hidden");
+    document.getElementById("staleBannerText").textContent = `Last synced ${formatRelativeTime(last)} — data may be out of date.`;
+  } else {
+    banner.classList.add("hidden");
+  }
+}
+
+async function runSync() {
+  const syncBtn = document.getElementById("syncBtn");
+  const statusText = document.getElementById("syncStatusText");
+  syncBtn.disabled = true;
+  const originalLabel = syncBtn.textContent;
+  syncBtn.textContent = "Syncing…";
+
+  try {
+    const result = await syncActivities((msg) => {
+      statusText.innerHTML = `<span class="spinner"></span>${msg}`;
+    });
+    refreshStatsFromCache();
+    refreshStaleBanner();
+    statusText.textContent = `SYNCED — ${result.newCount} new, ${result.total} total`;
+  } catch (e) {
+    statusText.textContent = "Sync failed — check connection and try again";
+  } finally {
+    syncBtn.disabled = false;
+    syncBtn.textContent = originalLabel;
+  }
 }
 
 /* =========================================================
@@ -431,6 +676,8 @@ document.getElementById("disconnectBtn").addEventListener("click", () => {
   clearTokens();
   showLanding();
 });
+document.getElementById("syncBtn").addEventListener("click", runSync);
+document.getElementById("staleSyncBtn").addEventListener("click", runSync);
 
 boot();
 </script>

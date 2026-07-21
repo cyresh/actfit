@@ -7,7 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./vendor/leaflet.css">
 <script src="./chart.umd.js"></script>
+<script src="./vendor/leaflet.js"></script>
 <style>
   :root{
     --ink:#12171A;
@@ -399,6 +401,66 @@
     color:var(--muted);
   }
   .heatmap-legend .heatmap-cell{ width:10px; height:10px; }
+
+  /* ---------- stage 5: personal records + map ---------- */
+  .pr-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:14px;
+  }
+  .pr-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:20px;
+  }
+  .pr-value{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-weight:800;
+    font-size:30px;
+    line-height:1;
+    color:var(--route);
+  }
+  .pr-value .unit{
+    font-size:14px;
+    font-weight:600;
+    color:var(--muted);
+    margin-left:4px;
+  }
+  .pr-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-top:8px;
+  }
+  .pr-meta{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--chalk);
+    margin-top:10px;
+    opacity:0.7;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  @media (max-width:640px){
+    .pr-grid{ grid-template-columns:repeat(2,1fr); }
+  }
+
+  #routeMap{
+    width:100%;
+    height:360px;
+    border-radius:4px;
+    background:var(--surface-2);
+  }
+  .map-note{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:10px;
+  }
 </style>
 </head>
 <body>
@@ -530,10 +592,19 @@
         <span>More</span>
       </div>
     </div>
+
+    <div class="section-title">Personal records</div>
+    <div class="pr-grid" id="prGrid"></div>
+
+    <div class="section-title">All routes</div>
+    <div class="chart-card">
+      <div id="routeMap"></div>
+      <p class="map-note">Tiles load from OpenStreetMap/CARTO over the network — routes are decoded and drawn from your cached data either way.</p>
+    </div>
   </div>
 
   <p class="footer-note">
-    Stage 3 of 6 — overview dashboard. Distance, elevation, time and activity count computed live from what's cached locally, filterable by sport and time range. See <code>CONFIG</code> at the top of the script
+    Stage 5 of 6 — personal records &amp; route map added on top of the dashboard, trends and heatmap. Chart.js and Leaflet are vendored locally in this repo (no third-party CDN calls) so nothing breaks behind restrictive networks. See <code>CONFIG</code> at the top of the script
     below to point this at your own Strava API app and Worker.
   </p>
 
@@ -878,6 +949,8 @@ function renderDashboard() {
     emptyDash.classList.remove("hidden");
     renderTrendCharts();
     renderHeatmap();
+    renderPRs();
+    renderRouteMap();
     return;
   }
   grid.classList.remove("hidden");
@@ -894,6 +967,8 @@ function renderDashboard() {
 
   renderTrendCharts();
   renderHeatmap();
+  renderPRs();
+  renderRouteMap();
 }
 
 function initDashboardFilters() {
@@ -1080,6 +1155,144 @@ function renderHeatmap() {
       cell.style.background = ratio > 0.85 ? "var(--contour)" : `rgba(99,194,155,${alpha.toFixed(2)})`;
     }
     grid.appendChild(cell);
+  }
+}
+
+/* =========================================================
+   Stage 5: personal records
+   ========================================================= */
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function renderPRs() {
+  const grid = document.getElementById("prGrid");
+  const sportFiltered = Object.values(loadActivities()).filter(
+    (a) => dashState.sport === "all" || a.sport === dashState.sport
+  );
+  grid.innerHTML = "";
+
+  if (sportFiltered.length === 0) {
+    grid.innerHTML = `<p class="empty-dash">No activities to compute records from yet.</p>`;
+    return;
+  }
+
+  const runs = sportFiltered.filter((a) => a.sport === "run");
+  const rides = sportFiltered.filter((a) => a.sport === "ride");
+
+  const cards = [];
+
+  const longestRun = runs.reduce((best, a) => (!best || a.distance > best.distance ? a : best), null);
+  if (longestRun) cards.push({ label: "Longest run", value: formatKm(longestRun.distance), unit: "km", meta: `${longestRun.name} · ${formatDate(longestRun.start_date_local)}` });
+
+  const longestRide = rides.reduce((best, a) => (!best || a.distance > best.distance ? a : best), null);
+  if (longestRide) cards.push({ label: "Longest ride", value: formatKm(longestRide.distance), unit: "km", meta: `${longestRide.name} · ${formatDate(longestRide.start_date_local)}` });
+
+  const eligibleRuns = runs.filter((a) => a.distance >= 1000 && a.moving_time > 0);
+  const fastestRun = eligibleRuns.reduce((best, a) => {
+    const pace = a.moving_time / (a.distance / 1000);
+    if (!best || pace < best.pace) return { a, pace };
+    return best;
+  }, null);
+  if (fastestRun) {
+    const mins = Math.floor(fastestRun.pace / 60);
+    const secs = Math.round(fastestRun.pace % 60);
+    cards.push({ label: "Fastest run pace", value: `${mins}:${String(secs).padStart(2, "0")}`, unit: "/km", meta: `${fastestRun.a.name} · ${formatDate(fastestRun.a.start_date_local)}` });
+  }
+
+  const eligibleRides = rides.filter((a) => a.moving_time > 0);
+  const fastestRide = eligibleRides.reduce((best, a) => {
+    const kmh = (a.distance / 1000) / (a.moving_time / 3600);
+    if (!best || kmh > best.kmh) return { a, kmh };
+    return best;
+  }, null);
+  if (fastestRide) cards.push({ label: "Fastest ride avg speed", value: fastestRide.kmh.toFixed(1), unit: "km/h", meta: `${fastestRide.a.name} · ${formatDate(fastestRide.a.start_date_local)}` });
+
+  const biggestClimb = sportFiltered.reduce((best, a) => (!best || (a.total_elevation_gain || 0) > (best.total_elevation_gain || 0) ? a : best), null);
+  if (biggestClimb) cards.push({ label: "Biggest elevation day", value: Math.round(biggestClimb.total_elevation_gain), unit: "m", meta: `${biggestClimb.name} · ${formatDate(biggestClimb.start_date_local)}` });
+
+  cards.forEach((c) => {
+    const el = document.createElement("div");
+    el.className = "pr-card";
+    el.innerHTML = `
+      <div class="pr-value">${c.value}<span class="unit">${c.unit}</span></div>
+      <div class="pr-label">${c.label}</div>
+      <div class="pr-meta" title="${c.meta}">${c.meta}</div>
+    `;
+    grid.appendChild(el);
+  });
+}
+
+/* =========================================================
+   Stage 5: route map
+   ========================================================= */
+let routeMapInstance = null;
+
+// Decodes Google's encoded polyline format (used by Strava's map.summary_polyline)
+function decodePolyline(encoded) {
+  if (!encoded) return [];
+  let points = [], index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lat += dlat;
+
+    shift = 0; result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+    lng += dlng;
+
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
+}
+
+function renderRouteMap() {
+  if (typeof L === "undefined") return; // Leaflet failed to load — fail quietly
+
+  const sportFiltered = Object.values(loadActivities()).filter(
+    (a) => dashState.sport === "all" || a.sport === dashState.sport
+  );
+  const withRoutes = sportFiltered.filter((a) => a.map_summary_polyline);
+
+  if (!routeMapInstance) {
+    routeMapInstance = L.map("routeMap", { zoomControl: true, attributionControl: true });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      maxZoom: 19,
+    }).addTo(routeMapInstance);
+  }
+
+  // clear previous route layers (keep the tile layer)
+  routeMapInstance.eachLayer((layer) => {
+    if (layer instanceof L.Polyline) routeMapInstance.removeLayer(layer);
+  });
+
+  if (withRoutes.length === 0) {
+    routeMapInstance.setView([20, 0], 2);
+    return;
+  }
+
+  const allBounds = [];
+  withRoutes.forEach((a) => {
+    const latlngs = decodePolyline(a.map_summary_polyline);
+    if (latlngs.length < 2) return;
+    const color = a.sport === "run" ? "#FF5A36" : "#63C29B";
+    L.polyline(latlngs, { color, weight: 2, opacity: 0.75 }).addTo(routeMapInstance);
+    allBounds.push(...latlngs);
+  });
+
+  if (allBounds.length > 0) {
+    routeMapInstance.fitBounds(allBounds, { padding: [20, 20] });
   }
 }
 

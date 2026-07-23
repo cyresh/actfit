@@ -546,6 +546,84 @@
     font-weight:700;
   }
   table.year-table tr:nth-child(even) td:not(.alltime){ background:rgba(255,255,255,0.02); }
+
+  /* ---------- stage 9: activities list ---------- */
+  .activities-controls{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .activities-controls select{
+    background:var(--surface);
+    color:var(--chalk);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:9px 12px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+  }
+  .activities-count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .activities-scroll{
+    max-height:520px;
+    overflow-y:auto;
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:4px;
+  }
+  table.activities-table{
+    width:100%;
+    border-collapse:collapse;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    min-width:720px;
+  }
+  table.activities-table thead th{
+    position:sticky;
+    top:0;
+    background:var(--surface-2);
+    color:var(--chalk);
+    text-align:right;
+    padding:10px 12px;
+    cursor:pointer;
+    user-select:none;
+    white-space:nowrap;
+    border-bottom:1px solid var(--line);
+    z-index:1;
+  }
+  table.activities-table thead th:first-child,
+  table.activities-table thead th:nth-child(2),
+  table.activities-table thead th:nth-child(3){ text-align:left; }
+  table.activities-table thead th:hover{ color:var(--route); }
+  table.activities-table td{
+    text-align:right;
+    padding:8px 12px;
+    color:var(--chalk);
+    border-top:1px solid var(--line);
+    white-space:nowrap;
+  }
+  table.activities-table td:first-child,
+  table.activities-table td:nth-child(2),
+  table.activities-table td:nth-child(3){ text-align:left; }
+  table.activities-table td:nth-child(2){
+    max-width:220px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  table.activities-table tbody tr:hover td{ background:rgba(255,255,255,0.03); }
+  .hr-cell{ border-radius:3px; padding:4px 8px !important; color:#12171A; font-weight:600; }
+  tfoot.activities-totals td{
+    background:var(--surface-2);
+    font-weight:700;
+    border-top:2px solid var(--route);
+    position:sticky;
+    bottom:0;
+  }
 </style>
 </head>
 <body>
@@ -688,6 +766,57 @@
 
     <div class="section-title">Year-by-year — Run Stats</div>
     <div class="year-table-wrap" id="runYearTableWrap"></div>
+
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Distance &amp; elevation breakdown</span>
+      <div class="segmented" id="granularityFilter">
+        <button data-gran="monthly" class="active">Monthly</button>
+        <button data-gran="yearly">Yearly</button>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Ride distance (km)</div>
+      <canvas id="rideBreakdownChart" height="220"></canvas>
+    </div>
+    <div class="chart-card">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run distance (km)</div>
+      <canvas id="runBreakdownChart" height="220"></canvas>
+    </div>
+    <div class="chart-card">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run elevation gain (m)</div>
+      <canvas id="runElevBreakdownChart" height="220"></canvas>
+    </div>
+
+    <div class="section-title">Activities</div>
+    <div class="activities-controls">
+      <select id="activityTypeFilter"><option value="all">All types</option></select>
+      <span class="activities-count" id="activitiesCount"></span>
+    </div>
+    <div class="activities-scroll">
+      <table class="activities-table">
+        <thead>
+          <tr>
+            <th data-sort="start_date_local">Date</th>
+            <th data-sort="name">Name</th>
+            <th data-sort="type">Type</th>
+            <th data-sort="distance">Distance</th>
+            <th data-sort="moving_time">Moving Time</th>
+            <th data-sort="average_heartrate">Heart Rate</th>
+            <th data-sort="total_elevation_gain">Elevation</th>
+          </tr>
+        </thead>
+        <tbody id="activitiesTableBody"></tbody>
+        <tfoot class="activities-totals">
+          <tr>
+            <td colspan="3">Totals</td>
+            <td id="totalsDistance">—</td>
+            <td id="totalsTime">—</td>
+            <td id="totalsHr">—</td>
+            <td id="totalsElevation">—</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
 
     <div class="section-title">Personal records</div>
     <div class="pr-grid" id="prGrid"></div>
@@ -1046,6 +1175,8 @@ function renderDashboard() {
     renderTrendCharts();
     renderHeatmap();
     renderYearTables();
+  renderBreakdownCharts();
+    renderActivitiesList();
     renderPRs();
     renderRouteMap();
     return;
@@ -1065,6 +1196,8 @@ function renderDashboard() {
   renderTrendCharts();
   renderHeatmap();
   renderYearTables();
+  renderBreakdownCharts();
+  renderActivitiesList();
   renderPRs();
   renderRouteMap();
 }
@@ -1261,6 +1394,211 @@ function renderHeatmap() {
    ========================================================= */
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* =========================================================
+   Stage 8: monthly/yearly distance & elevation breakdown
+   ========================================================= */
+let breakdownGranularity = "monthly";
+let rideBreakdownChartInstance = null;
+let runBreakdownChartInstance = null;
+let runElevBreakdownChartInstance = null;
+
+function bucketKey(dateStr, granularity) {
+  const d = new Date(dateStr);
+  if (granularity === "yearly") return String(d.getFullYear());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function bucketLabel(key, granularity) {
+  if (granularity === "yearly") return key;
+  const [y, m] = key.split("-");
+  const d = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+  return d.toLocaleDateString(undefined, { month: "short", year: "2-digit" }).replace(" ", "-").toUpperCase();
+}
+
+function buildBreakdownSeries(activities, valueFn, granularity) {
+  if (activities.length === 0) return { labels: [], values: [] };
+
+  const sorted = [...activities].sort((a, b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+  const firstKey = bucketKey(sorted[0].start_date_local, granularity);
+  const lastKey = bucketKey(new Date().toISOString(), granularity);
+
+  // build a complete ordered list of buckets between first activity and today (so gaps show as 0, not skipped)
+  const keys = [];
+  if (granularity === "yearly") {
+    for (let y = parseInt(firstKey, 10); y <= parseInt(lastKey, 10); y++) keys.push(String(y));
+  } else {
+    let [y, m] = firstKey.split("-").map(Number);
+    const [ly, lm] = lastKey.split("-").map(Number);
+    while (y < ly || (y === ly && m <= lm)) {
+      keys.push(`${y}-${String(m).padStart(2, "0")}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+  }
+
+  const sums = {};
+  keys.forEach((k) => (sums[k] = 0));
+  activities.forEach((a) => {
+    const k = bucketKey(a.start_date_local, granularity);
+    if (k in sums) sums[k] += valueFn(a);
+  });
+
+  return {
+    labels: keys.map((k) => bucketLabel(k, granularity)),
+    values: keys.map((k) => Math.round(sums[k])),
+  };
+}
+
+function renderBreakdownChart(canvasId, existingInstanceRef, series, color) {
+  const canvas = document.getElementById(canvasId);
+  if (existingInstanceRef.current) existingInstanceRef.current.destroy();
+  existingInstanceRef.current = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: series.labels,
+      datasets: [{ data: series.values, backgroundColor: color, borderRadius: 2 }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ctx.parsed.y.toLocaleString() } },
+      },
+      scales: {
+        x: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 9 }, maxRotation: 60, minRotation: 60 }, grid: { display: false } },
+        y: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(238,241,236,0.06)" } },
+      },
+    },
+  });
+}
+
+function renderBreakdownCharts() {
+  if (typeof Chart === "undefined") return;
+  const all = Object.values(loadActivities());
+  const rides = all.filter((a) => a.sport === "ride");
+  const runs = all.filter((a) => a.sport === "run");
+
+  const rideSeries = buildBreakdownSeries(rides, (a) => (a.distance || 0) / 1000, breakdownGranularity);
+  const runSeries = buildBreakdownSeries(runs, (a) => (a.distance || 0) / 1000, breakdownGranularity);
+  const runElevSeries = buildBreakdownSeries(runs, (a) => a.total_elevation_gain || 0, breakdownGranularity);
+
+  renderBreakdownChart("rideBreakdownChart", { get current() { return rideBreakdownChartInstance; }, set current(v) { rideBreakdownChartInstance = v; } }, rideSeries, "#FF5A36");
+  renderBreakdownChart("runBreakdownChart", { get current() { return runBreakdownChartInstance; }, set current(v) { runBreakdownChartInstance = v; } }, runSeries, "#FF5A36");
+  renderBreakdownChart("runElevBreakdownChart", { get current() { return runElevBreakdownChartInstance; }, set current(v) { runElevBreakdownChartInstance = v; } }, runElevSeries, "#FF5A36");
+}
+
+function initGranularityFilter() {
+  document.querySelectorAll("#granularityFilter button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#granularityFilter button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      breakdownGranularity = btn.dataset.gran;
+      renderBreakdownCharts();
+    });
+  });
+}
+
+/* =========================================================
+   Stage 9: activities list (filter, sort, totals)
+   ========================================================= */
+const activityListState = { type: "all", sortField: "start_date_local", sortDir: "desc" };
+
+function populateActivityTypeFilter() {
+  const select = document.getElementById("activityTypeFilter");
+  const all = Object.values(loadActivities());
+  const types = Array.from(new Set(all.map((a) => a.type))).sort();
+  const current = select.value || "all";
+  select.innerHTML = `<option value="all">All types</option>` + types.map((t) => `<option value="${t}">${t}</option>`).join("");
+  select.value = types.includes(current) ? current : "all";
+}
+
+function hrColor(hr, min, max) {
+  if (!hr || max === min) return "";
+  const ratio = Math.min(1, Math.max(0, (hr - min) / (max - min)));
+  // pale pink -> deep red, matches the reference screenshot's heat scale
+  const r = 255;
+  const g = Math.round(220 - ratio * 180);
+  const b = Math.round(220 - ratio * 180);
+  return `background:rgb(${r},${g},${b})`;
+}
+
+function renderActivitiesList() {
+  populateActivityTypeFilter();
+
+  const all = Object.values(loadActivities());
+  const filtered = activityListState.type === "all" ? all : all.filter((a) => a.type === activityListState.type);
+
+  const { sortField, sortDir } = activityListState;
+  const sorted = [...filtered].sort((a, b) => {
+    let av = a[sortField], bv = b[sortField];
+    if (sortField === "start_date_local") { av = new Date(av).getTime(); bv = new Date(bv).getTime(); }
+    if (sortField === "name" || sortField === "type") { av = (av || "").toLowerCase(); bv = (bv || "").toLowerCase(); }
+    if (av == null) av = sortDir === "asc" ? Infinity : -Infinity;
+    if (bv == null) bv = sortDir === "asc" ? Infinity : -Infinity;
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  document.querySelectorAll("table.activities-table thead th").forEach((th) => {
+    const base = th.textContent.replace(/ [▲▼]$/, "");
+    th.textContent = th.dataset.sort === sortField ? `${base} ${sortDir === "asc" ? "▲" : "▼"}` : base;
+  });
+
+  const hrValues = sorted.map((a) => a.average_heartrate).filter((v) => v != null);
+  const minHr = hrValues.length ? Math.min(...hrValues) : 0;
+  const maxHr = hrValues.length ? Math.max(...hrValues) : 0;
+
+  const tbody = document.getElementById("activitiesTableBody");
+  tbody.innerHTML = sorted.map((a) => {
+    const dateStr = new Date(a.start_date_local).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+    const distKm = formatKm(a.distance || 0);
+    const time = formatHoursMinutes(a.moving_time || 0);
+    const hr = a.average_heartrate ? Math.round(a.average_heartrate) : null;
+    const hrStyle = hr ? hrColor(hr, minHr, maxHr) : "";
+    const elev = Math.round(a.total_elevation_gain || 0);
+    return `<tr>
+      <td>${dateStr}</td>
+      <td title="${a.name}">${a.name}</td>
+      <td>${a.type}</td>
+      <td>${distKm} km</td>
+      <td>${time}</td>
+      <td class="hr-cell" style="${hrStyle}">${hr ? hr + " bpm" : "—"}</td>
+      <td>${elev} m</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("activitiesCount").textContent = `${sorted.length} activities`;
+
+  const totalDist = sorted.reduce((s, a) => s + (a.distance || 0), 0);
+  const totalTime = sorted.reduce((s, a) => s + (a.moving_time || 0), 0);
+  const totalElev = sorted.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
+  const avgHr = hrValues.length ? Math.round(hrValues.reduce((s, v) => s + v, 0) / hrValues.length) : null;
+
+  document.getElementById("totalsDistance").textContent = `${formatKm(totalDist)} km`;
+  document.getElementById("totalsTime").textContent = formatHoursMinutes(totalTime);
+  document.getElementById("totalsHr").textContent = avgHr ? `${avgHr} bpm avg` : "—";
+  document.getElementById("totalsElevation").textContent = `${Math.round(totalElev)} m`;
+}
+
+function initActivitiesListControls() {
+  document.getElementById("activityTypeFilter").addEventListener("change", (e) => {
+    activityListState.type = e.target.value;
+    renderActivitiesList();
+  });
+  document.querySelectorAll("table.activities-table thead th").forEach((th) => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort;
+      if (activityListState.sortField === field) {
+        activityListState.sortDir = activityListState.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        activityListState.sortField = field;
+        activityListState.sortDir = field === "start_date_local" ? "desc" : "desc";
+      }
+      renderActivitiesList();
+    });
+  });
 }
 
 /* =========================================================
@@ -1657,6 +1995,8 @@ document.getElementById("staleSyncBtn").addEventListener("click", runSync);
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 document.getElementById("downloadCardBtn").addEventListener("click", downloadStatsCard);
 initDashboardFilters();
+initGranularityFilter();
+initActivitiesListControls();
 initTheme();
 
 boot();

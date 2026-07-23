@@ -22,6 +22,17 @@
     --contour:#63C29B;
     --line: rgba(238,241,236,0.08);
   }
+  body.light{
+    --ink:#F4F5F3;
+    --surface:#FFFFFF;
+    --surface-2:#ECEEEC;
+    --chalk:#1A2023;
+    --muted:#6B7676;
+    --route:#E14A29;
+    --route-dim:#B9401F;
+    --contour:#2E9B6C;
+    --line: rgba(20,25,26,0.1);
+  }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -461,12 +472,45 @@
     color:var(--muted);
     margin-top:10px;
   }
+
+  /* ---------- stage 6: polish ---------- */
+  .theme-toggle{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--chalk);
+    width:34px;height:34px;
+    border-radius:50%;
+    cursor:pointer;
+    font-size:15px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:border-color .15s ease;
+  }
+  .theme-toggle:hover{ border-color:var(--muted); }
+
+  .share-row{
+    display:flex;
+    justify-content:flex-end;
+    margin-bottom:14px;
+  }
+
+  @media (max-width:640px){
+    .stat-row{ flex-wrap:wrap; gap:16px; }
+    .stat{ flex:1 1 30%; min-width:90px; }
+    .filter-bar{ gap:14px; }
+    .segmented button{ padding:8px 12px; font-size:11px; }
+    .profile-row{ flex-wrap:wrap; }
+    .status-pill{ margin-left:0; }
+    #routeMap{ height:280px; }
+  }
 </style>
 </head>
 <body>
 
   <div class="topbar">
     <div class="brand"><span class="dot"></span>STRAVA DASH</div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
   </div>
 
   <!-- ============ LANDING (logged-out) ============ -->
@@ -545,6 +589,10 @@
       </div>
     </div>
 
+    <div class="share-row">
+      <button class="btn btn-ghost" id="downloadCardBtn">Download stats card ↓</button>
+    </div>
+
     <div class="overview-grid" id="overviewGrid">
       <div class="overview-card">
         <div class="overview-value" id="ovDistance">0<span class="unit">km</span></div>
@@ -604,7 +652,7 @@
   </div>
 
   <p class="footer-note">
-    Stage 5 of 6 — personal records &amp; route map added on top of the dashboard, trends and heatmap. Chart.js and Leaflet are vendored locally in this repo (no third-party CDN calls) so nothing breaks behind restrictive networks. See <code>CONFIG</code> at the top of the script
+    Stage 6 of 6 — polish: dark/light theme toggle (top right), a downloadable stats card (canvas-generated PNG, respects your current sport/range filter), and a mobile responsive pass. Chart.js and Leaflet are vendored locally in this repo (no third-party CDN calls) so nothing breaks behind restrictive networks. See <code>CONFIG</code> at the top of the script
     below to point this at your own Strava API app and Worker.
   </p>
 
@@ -1337,6 +1385,113 @@ async function boot() {
   }
 }
 
+/* =========================================================
+   Stage 6: theme toggle
+   ========================================================= */
+const THEME_KEY = "strava_dash_theme";
+
+function applyTheme(theme) {
+  document.body.classList.toggle("light", theme === "light");
+  document.getElementById("themeToggle").textContent = theme === "light" ? "☀️" : "🌙";
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+  applyTheme(saved || (prefersLight ? "light" : "dark"));
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.contains("light");
+  const next = isLight ? "dark" : "light";
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+  // Redraw charts/map so their canvas-baked colors match the new theme
+  renderTrendCharts();
+  renderRouteMap();
+}
+
+/* =========================================================
+   Stage 6: shareable stats card (canvas-generated PNG)
+   ========================================================= */
+function drawStatsCard() {
+  const canvas = document.createElement("canvas");
+  const W = 1080, H = 1080;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // background
+  ctx.fillStyle = "#12171A";
+  ctx.fillRect(0, 0, W, H);
+
+  // faint elevation-line motif
+  ctx.strokeStyle = "rgba(238,241,236,0.06)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 300);
+  ctx.lineTo(W, 300);
+  ctx.stroke();
+
+  // brand
+  ctx.fillStyle = "#FF5A36";
+  ctx.beginPath();
+  ctx.arc(70, 90, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#EEF1EC";
+  ctx.font = "700 28px sans-serif";
+  ctx.fillText("STRAVA DASH", 90, 100);
+
+  // title
+  ctx.fillStyle = "#EEF1EC";
+  ctx.font = "800 64px sans-serif";
+  const rangeLabel = { week: "This Week", month: "This Month", year: "This Year", all: "All Time" }[dashState.range];
+  const sportLabel = { all: "Training", run: "Running", ride: "Cycling" }[dashState.sport];
+  ctx.fillText(`${sportLabel}`, 70, 220);
+  ctx.fillStyle = "#7C8A8A";
+  ctx.font = "500 26px monospace";
+  ctx.fillText(rangeLabel.toUpperCase(), 70, 260);
+
+  // stats
+  const list = filteredActivities();
+  const totalDistance = list.reduce((sum, a) => sum + (a.distance || 0), 0);
+  const totalElevation = list.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
+  const totalTime = list.reduce((sum, a) => sum + (a.moving_time || 0), 0);
+
+  const stats = [
+    { label: "DISTANCE", value: `${formatKm(totalDistance)} km` },
+    { label: "ELEVATION GAIN", value: `${Math.round(totalElevation)} m` },
+    { label: "MOVING TIME", value: formatHoursMinutes(totalTime) },
+    { label: "ACTIVITIES", value: String(list.length) },
+  ];
+
+  const startY = 420;
+  const rowH = 150;
+  stats.forEach((s, i) => {
+    const y = startY + i * rowH;
+    ctx.fillStyle = "#7C8A8A";
+    ctx.font = "500 22px monospace";
+    ctx.fillText(s.label, 70, y);
+    ctx.fillStyle = i === 0 ? "#FF5A36" : "#EEF1EC";
+    ctx.font = "800 72px sans-serif";
+    ctx.fillText(s.value, 70, y + 60);
+  });
+
+  ctx.fillStyle = "#7C8A8A";
+  ctx.font = "500 20px monospace";
+  ctx.fillText(new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }), 70, H - 50);
+
+  return canvas;
+}
+
+function downloadStatsCard() {
+  const canvas = drawStatsCard();
+  const link = document.createElement("a");
+  link.download = `strava-dash-${dashState.sport}-${dashState.range}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
 document.getElementById("connectBtn").addEventListener("click", connect);
 document.getElementById("disconnectBtn").addEventListener("click", () => {
   clearTokens();
@@ -1344,7 +1499,10 @@ document.getElementById("disconnectBtn").addEventListener("click", () => {
 });
 document.getElementById("syncBtn").addEventListener("click", runSync);
 document.getElementById("staleSyncBtn").addEventListener("click", runSync);
+document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+document.getElementById("downloadCardBtn").addEventListener("click", downloadStatsCard);
 initDashboardFilters();
+initTheme();
 
 boot();
 </script>

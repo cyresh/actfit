@@ -504,6 +504,48 @@
     .status-pill{ margin-left:0; }
     #routeMap{ height:280px; }
   }
+
+  /* ---------- stage 7: year-wise tables ---------- */
+  .year-table-wrap{
+    overflow-x:auto;
+    margin-bottom:24px;
+    border-radius:4px;
+    border:1px solid var(--line);
+  }
+  table.year-table{
+    width:100%;
+    border-collapse:collapse;
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    min-width:520px;
+  }
+  table.year-table th{
+    background:var(--route);
+    color:var(--ink);
+    font-weight:700;
+    text-align:right;
+    padding:10px 14px;
+    white-space:nowrap;
+  }
+  table.year-table th:first-child{ text-align:left; }
+  table.year-table td{
+    text-align:right;
+    padding:9px 14px;
+    color:var(--chalk);
+    background:var(--surface);
+    border-top:1px solid var(--line);
+    white-space:nowrap;
+  }
+  table.year-table td:first-child{
+    text-align:left;
+    color:var(--muted);
+    font-weight:500;
+  }
+  table.year-table td.alltime, table.year-table th.alltime{
+    background:var(--surface-2);
+    font-weight:700;
+  }
+  table.year-table tr:nth-child(even) td:not(.alltime){ background:rgba(255,255,255,0.02); }
 </style>
 </head>
 <body>
@@ -640,6 +682,12 @@
         <span>More</span>
       </div>
     </div>
+
+    <div class="section-title">Year-by-year — Ride Stats</div>
+    <div class="year-table-wrap" id="rideYearTableWrap"></div>
+
+    <div class="section-title">Year-by-year — Run Stats</div>
+    <div class="year-table-wrap" id="runYearTableWrap"></div>
 
     <div class="section-title">Personal records</div>
     <div class="pr-grid" id="prGrid"></div>
@@ -997,6 +1045,7 @@ function renderDashboard() {
     emptyDash.classList.remove("hidden");
     renderTrendCharts();
     renderHeatmap();
+    renderYearTables();
     renderPRs();
     renderRouteMap();
     return;
@@ -1015,6 +1064,7 @@ function renderDashboard() {
 
   renderTrendCharts();
   renderHeatmap();
+  renderYearTables();
   renderPRs();
   renderRouteMap();
 }
@@ -1211,6 +1261,111 @@ function renderHeatmap() {
    ========================================================= */
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* =========================================================
+   Stage 7: year-wise stats tables
+   ========================================================= */
+function formatInt(n) {
+  return Math.round(n).toLocaleString("en-IN");
+}
+
+function bucketRun(distanceM) {
+  const km = distanceM / 1000;
+  if (km >= 42.2) return "fm";
+  if (km >= 32) return "k32";
+  if (km >= 21.1) return "hm";
+  if (km >= 10) return "k10";
+  return null;
+}
+function bucketRide(distanceM) {
+  const km = distanceM / 1000;
+  if (km >= 100) return "k100";
+  if (km >= 50) return "k50";
+  return null;
+}
+
+function computeYearRows(activities, sport) {
+  const years = new Set();
+  activities.forEach((a) => years.add(new Date(a.start_date_local).getFullYear()));
+  const sortedYears = Array.from(years).sort((a, b) => b - a);
+  const columns = [...sortedYears, "All-Time"];
+
+  const rows = {};
+  columns.forEach((col) => {
+    const inYear = col === "All-Time"
+      ? activities
+      : activities.filter((a) => new Date(a.start_date_local).getFullYear() === col);
+
+    const distance = inYear.reduce((s, a) => s + (a.distance || 0), 0);
+    const time = inYear.reduce((s, a) => s + (a.moving_time || 0), 0);
+    const elevation = inYear.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
+
+    const buckets = {};
+    inYear.forEach((a) => {
+      const b = sport === "run" ? bucketRun(a.distance) : bucketRide(a.distance);
+      if (b) buckets[b] = (buckets[b] || 0) + 1;
+    });
+
+    rows[col] = {
+      activities: inYear.length,
+      distance: Math.round(distance / 1000),
+      time: Math.round(time / 3600),
+      elevation: Math.round(elevation),
+      buckets,
+    };
+  });
+
+  return { columns, rows };
+}
+
+function buildYearTableHtml(title, columns, rows, sport) {
+  const bucketDefs = sport === "run"
+    ? [["k10", "10K Runs"], ["hm", "HM Runs"], ["k32", "32K Runs"], ["fm", "FM Runs"]]
+    : [["k50", "50K Rides"], ["k100", "100K Rides"]];
+
+  let thead = `<tr><th>Year</th>${columns.map((c) => `<th class="${c === "All-Time" ? "alltime" : ""}">${c}</th>`).join("")}</tr>`;
+
+  function metricRow(label, fn) {
+    return `<tr><td>${label}</td>${columns.map((c) => {
+      const v = fn(rows[c]);
+      return `<td class="${c === "All-Time" ? "alltime" : ""}">${v}</td>`;
+    }).join("")}</tr>`;
+  }
+
+  let body = "";
+  body += metricRow("Activities", (r) => formatInt(r.activities));
+  body += metricRow("Distance", (r) => `${formatInt(r.distance)} km`);
+  body += metricRow("Time", (r) => `${formatInt(r.time)} h`);
+  body += metricRow("Ele. Gain", (r) => `${formatInt(r.elevation)} m`);
+  bucketDefs.forEach(([key, label]) => {
+    body += metricRow(label, (r) => (r.buckets[key] ? formatInt(r.buckets[key]) : "–"));
+  });
+
+  return `<table class="year-table"><thead>${thead}</thead><tbody>${body}</tbody></table>`;
+}
+
+function renderYearTables() {
+  const all = Object.values(loadActivities());
+  const runs = all.filter((a) => a.sport === "run");
+  const rides = all.filter((a) => a.sport === "ride");
+
+  const rideWrap = document.getElementById("rideYearTableWrap");
+  const runWrap = document.getElementById("runYearTableWrap");
+
+  if (rides.length === 0) {
+    rideWrap.innerHTML = `<p class="empty-dash">No ride data yet.</p>`;
+  } else {
+    const { columns, rows } = computeYearRows(rides, "ride");
+    rideWrap.innerHTML = buildYearTableHtml("Ride Stats", columns, rows, "ride");
+  }
+
+  if (runs.length === 0) {
+    runWrap.innerHTML = `<p class="empty-dash">No run data yet.</p>`;
+  } else {
+    const { columns, rows } = computeYearRows(runs, "run");
+    runWrap.innerHTML = buildYearTableHtml("Run Stats", columns, rows, "run");
+  }
 }
 
 function renderPRs() {

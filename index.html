@@ -386,21 +386,60 @@
     padding:8px 0 0;
   }
 
+  .heatmap-outer{
+    display:flex;
+    align-items:flex-start;
+    gap:6px;
+  }
+  .heatmap-daylabels{
+    display:grid;
+    grid-template-rows:repeat(7,11px);
+    gap:3px;
+    padding-top:0;
+    flex-shrink:0;
+  }
+  .heatmap-daylabels span{
+    font-family:'JetBrains Mono',monospace;
+    font-size:8px;
+    color:var(--muted);
+    line-height:11px;
+    height:11px;
+    text-align:right;
+    width:12px;
+  }
   .heatmap-scroll{
     overflow-x:auto;
     padding-bottom:6px;
+    flex:1;
+  }
+  .heatmap-months{
+    display:flex;
+    gap:10px;
+    width:max-content;
+  }
+  .heatmap-month-block{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
   }
   .heatmap-grid{
     display:grid;
     grid-auto-flow:column;
     grid-template-rows:repeat(7,11px);
     gap:3px;
-    width:max-content;
   }
   .heatmap-cell{
     width:11px;height:11px;
     border-radius:2px;
     background:var(--line);
+  }
+  .heatmap-month-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.04em;
   }
   .heatmap-legend{
     display:flex;
@@ -545,6 +584,7 @@
     background:var(--surface-2);
     font-weight:700;
   }
+  table.year-table th.alltime{ color:var(--chalk); }
   table.year-table tr:nth-child(even) td:not(.alltime){ background:rgba(255,255,255,0.02); }
 
   /* ---------- stage 9: activities list ---------- */
@@ -747,8 +787,11 @@
 
     <div class="section-title">Activity calendar — last 12 months</div>
     <div class="chart-card">
-      <div class="heatmap-scroll">
-        <div class="heatmap-grid" id="heatmapGrid"></div>
+      <div class="heatmap-outer">
+        <div class="heatmap-daylabels" id="heatmapDayLabels"></div>
+        <div class="heatmap-scroll">
+          <div class="heatmap-months" id="heatmapMonths"></div>
+        </div>
       </div>
       <div class="heatmap-legend">
         <span>Less</span>
@@ -774,22 +817,27 @@
         <button data-gran="yearly">Yearly</button>
       </div>
     </div>
-    <div class="chart-card">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Ride distance (km)</div>
-      <canvas id="rideBreakdownChart" height="220"></canvas>
+    <div id="rideBreakdownWrap">
+      <div class="chart-card">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Ride distance (km)</div>
+        <canvas id="rideBreakdownChart" height="220"></canvas>
+      </div>
     </div>
-    <div class="chart-card">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run distance (km)</div>
-      <canvas id="runBreakdownChart" height="220"></canvas>
-    </div>
-    <div class="chart-card">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run elevation gain (m)</div>
-      <canvas id="runElevBreakdownChart" height="220"></canvas>
+    <div id="runBreakdownWrap">
+      <div class="chart-card">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run distance (km)</div>
+        <canvas id="runBreakdownChart" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run elevation gain (m)</div>
+        <canvas id="runElevBreakdownChart" height="220"></canvas>
+      </div>
     </div>
 
     <div class="section-title">Activities</div>
     <div class="activities-controls">
       <select id="activityTypeFilter"><option value="all">All types</option></select>
+      <input type="text" id="activitySearch" placeholder="Search by name…" style="background:var(--surface);color:var(--chalk);border:1px solid var(--line);border-radius:4px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;min-width:180px;">
       <span class="activities-count" id="activitiesCount"></span>
     </div>
     <div class="activities-scroll">
@@ -823,6 +871,9 @@
 
     <div class="section-title">All routes</div>
     <div class="chart-card">
+      <div class="share-row" style="margin-bottom:12px;">
+        <button class="btn btn-ghost" id="resetMapBtn" style="padding:8px 16px;font-size:12px;">Reset view</button>
+      </div>
       <div id="routeMap"></div>
       <p class="map-note">Tiles load from OpenStreetMap/CARTO over the network — routes are decoded and drawn from your cached data either way.</p>
     </div>
@@ -1355,9 +1406,21 @@ function renderTrendCharts() {
   });
 }
 
+function pad2(n) { return String(n).padStart(2, "0"); }
+function localDateKey(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+
 function renderHeatmap() {
-  const grid = document.getElementById("heatmapGrid");
-  grid.innerHTML = "";
+  const monthsContainer = document.getElementById("heatmapMonths");
+  const dayLabels = document.getElementById("heatmapDayLabels");
+  monthsContainer.innerHTML = "";
+
+  if (dayLabels.children.length === 0) {
+    ["S", "M", "T", "W", "T", "F", "S"].forEach((d) => {
+      const span = document.createElement("span");
+      span.textContent = d;
+      dayLabels.appendChild(span);
+    });
+  }
 
   const sportFiltered = Object.values(loadActivities()).filter(
     (a) => dashState.sport === "all" || a.sport === dashState.sport
@@ -1365,28 +1428,61 @@ function renderHeatmap() {
 
   const byDay = {};
   sportFiltered.forEach((a) => {
-    const key = a.start_date_local.slice(0, 10); // YYYY-MM-DD
+    const key = a.start_date_local.slice(0, 10); // already a local date string from Strava, no TZ conversion needed
     byDay[key] = (byDay[key] || 0) + (a.distance || 0);
   });
 
   const maxDist = Math.max(1, ...Object.values(byDay));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const start = startOfWeek(new Date(today.getTime() - 371 * 24 * 60 * 60 * 1000));
 
-  for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-    const key = d.toISOString().slice(0, 10);
-    const dist = byDay[key] || 0;
-    const cell = document.createElement("div");
-    cell.className = "heatmap-cell";
-    cell.title = `${key}: ${(dist / 1000).toFixed(1)} km`;
-    if (dist > 0) {
-      const ratio = dist / maxDist;
-      const alpha = 0.3 + ratio * 0.7;
-      cell.style.background = ratio > 0.85 ? "var(--contour)" : `rgba(99,194,155,${alpha.toFixed(2)})`;
-    }
-    grid.appendChild(cell);
+  // last 12 calendar months, oldest first, current month included as the rightmost block
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    months.push(new Date(today.getFullYear(), today.getMonth() - i, 1));
   }
+
+  months.forEach((monthStart) => {
+    const year = monthStart.getFullYear();
+    const month = monthStart.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstWeekday = monthStart.getDay(); // 0 = Sunday
+
+    const block = document.createElement("div");
+    block.className = "heatmap-month-block";
+
+    const grid = document.createElement("div");
+    grid.className = "heatmap-grid";
+    const weeksInMonth = Math.ceil((daysInMonth + firstWeekday) / 7);
+    grid.style.gridTemplateColumns = `repeat(${weeksInMonth}, 11px)`;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = new Date(year, month, day);
+      if (dateObj > today) break; // don't render future days
+
+      const key = localDateKey(dateObj);
+      const dist = byDay[key] || 0;
+      const cell = document.createElement("div");
+      cell.className = "heatmap-cell";
+      cell.title = `${key}: ${(dist / 1000).toFixed(1)} km`;
+      cell.style.gridRow = String(dateObj.getDay() + 1);
+      cell.style.gridColumn = String(Math.floor((day - 1 + firstWeekday) / 7) + 1);
+      if (dist > 0) {
+        const ratio = dist / maxDist;
+        const alpha = 0.3 + ratio * 0.7;
+        cell.style.background = ratio > 0.85 ? "var(--contour)" : `rgba(99,194,155,${alpha.toFixed(2)})`;
+      }
+      grid.appendChild(cell);
+    }
+
+    const label = document.createElement("div");
+    label.className = "heatmap-month-label";
+    label.textContent = monthStart.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+
+    block.appendChild(grid);
+    block.appendChild(label);
+    monthsContainer.appendChild(block);
+  });
 }
 
 /* =========================================================
@@ -1479,13 +1575,21 @@ function renderBreakdownCharts() {
   const rides = all.filter((a) => a.sport === "ride");
   const runs = all.filter((a) => a.sport === "run");
 
-  const rideSeries = buildBreakdownSeries(rides, (a) => (a.distance || 0) / 1000, breakdownGranularity);
-  const runSeries = buildBreakdownSeries(runs, (a) => (a.distance || 0) / 1000, breakdownGranularity);
-  const runElevSeries = buildBreakdownSeries(runs, (a) => a.total_elevation_gain || 0, breakdownGranularity);
+  const showRide = dashState.sport === "all" || dashState.sport === "ride";
+  const showRun = dashState.sport === "all" || dashState.sport === "run";
+  document.getElementById("rideBreakdownWrap").classList.toggle("hidden", !showRide);
+  document.getElementById("runBreakdownWrap").classList.toggle("hidden", !showRun);
 
-  renderBreakdownChart("rideBreakdownChart", { get current() { return rideBreakdownChartInstance; }, set current(v) { rideBreakdownChartInstance = v; } }, rideSeries, "#FF5A36");
-  renderBreakdownChart("runBreakdownChart", { get current() { return runBreakdownChartInstance; }, set current(v) { runBreakdownChartInstance = v; } }, runSeries, "#FF5A36");
-  renderBreakdownChart("runElevBreakdownChart", { get current() { return runElevBreakdownChartInstance; }, set current(v) { runElevBreakdownChartInstance = v; } }, runElevSeries, "#FF5A36");
+  if (showRide) {
+    const rideSeries = buildBreakdownSeries(rides, (a) => (a.distance || 0) / 1000, breakdownGranularity);
+    renderBreakdownChart("rideBreakdownChart", { get current() { return rideBreakdownChartInstance; }, set current(v) { rideBreakdownChartInstance = v; } }, rideSeries, "#FF5A36");
+  }
+  if (showRun) {
+    const runSeries = buildBreakdownSeries(runs, (a) => (a.distance || 0) / 1000, breakdownGranularity);
+    const runElevSeries = buildBreakdownSeries(runs, (a) => a.total_elevation_gain || 0, breakdownGranularity);
+    renderBreakdownChart("runBreakdownChart", { get current() { return runBreakdownChartInstance; }, set current(v) { runBreakdownChartInstance = v; } }, runSeries, "#FF5A36");
+    renderBreakdownChart("runElevBreakdownChart", { get current() { return runElevBreakdownChartInstance; }, set current(v) { runElevBreakdownChartInstance = v; } }, runElevSeries, "#FF5A36");
+  }
 }
 
 function initGranularityFilter() {
@@ -1502,7 +1606,7 @@ function initGranularityFilter() {
 /* =========================================================
    Stage 9: activities list (filter, sort, totals)
    ========================================================= */
-const activityListState = { type: "all", sortField: "start_date_local", sortDir: "desc" };
+const activityListState = { type: "all", search: "", sortField: "start_date_local", sortDir: "desc" };
 
 function populateActivityTypeFilter() {
   const select = document.getElementById("activityTypeFilter");
@@ -1527,7 +1631,11 @@ function renderActivitiesList() {
   populateActivityTypeFilter();
 
   const all = Object.values(loadActivities());
-  const filtered = activityListState.type === "all" ? all : all.filter((a) => a.type === activityListState.type);
+  let filtered = activityListState.type === "all" ? all : all.filter((a) => a.type === activityListState.type);
+  if (activityListState.search.trim()) {
+    const term = activityListState.search.trim().toLowerCase();
+    filtered = filtered.filter((a) => (a.name || "").toLowerCase().includes(term));
+  }
 
   const { sortField, sortDir } = activityListState;
   const sorted = [...filtered].sort((a, b) => {
@@ -1560,7 +1668,7 @@ function renderActivitiesList() {
     const elev = Math.round(a.total_elevation_gain || 0);
     return `<tr>
       <td>${dateStr}</td>
-      <td title="${a.name}">${a.name}</td>
+      <td title="${a.name}"><a href="https://www.strava.com/activities/${a.id}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-color:var(--line);">${a.name}</a></td>
       <td>${a.type}</td>
       <td>${distKm} km</td>
       <td>${time}</td>
@@ -1585,6 +1693,10 @@ function renderActivitiesList() {
 function initActivitiesListControls() {
   document.getElementById("activityTypeFilter").addEventListener("change", (e) => {
     activityListState.type = e.target.value;
+    renderActivitiesList();
+  });
+  document.getElementById("activitySearch").addEventListener("input", (e) => {
+    activityListState.search = e.target.value;
     renderActivitiesList();
   });
   document.querySelectorAll("table.activities-table thead th").forEach((th) => {
@@ -1768,6 +1880,7 @@ function renderPRs() {
    Stage 5: route map
    ========================================================= */
 let routeMapInstance = null;
+let routeMapDefaultBounds = null;
 
 // Decodes Google's encoded polyline format (used by Strava's map.summary_polyline)
 function decodePolyline(encoded) {
@@ -1792,7 +1905,13 @@ function decodePolyline(encoded) {
     const dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
     lng += dlng;
 
-    points.push([lat / 1e5, lng / 1e5]);
+    const point = [lat / 1e5, lng / 1e5];
+    // guard against corrupt/garbage points (bad encoding, precision errors) that would
+    // blow out fitBounds and zoom the map out to an untraceable world view
+    if (Number.isFinite(point[0]) && Number.isFinite(point[1]) &&
+        Math.abs(point[0]) <= 85 && Math.abs(point[1]) <= 180) {
+      points.push(point);
+    }
   }
   return points;
 }
@@ -1818,6 +1937,8 @@ function renderRouteMap() {
     if (layer instanceof L.Polyline) routeMapInstance.removeLayer(layer);
   });
 
+  routeMapDefaultBounds = null;
+
   if (withRoutes.length === 0) {
     routeMapInstance.setView([20, 0], 2);
     return;
@@ -1833,7 +1954,19 @@ function renderRouteMap() {
   });
 
   if (allBounds.length > 0) {
+    routeMapDefaultBounds = allBounds;
     routeMapInstance.fitBounds(allBounds, { padding: [20, 20] });
+  } else {
+    routeMapInstance.setView([20, 0], 2);
+  }
+}
+
+function resetRouteMapView() {
+  if (!routeMapInstance) return;
+  if (routeMapDefaultBounds && routeMapDefaultBounds.length > 0) {
+    routeMapInstance.fitBounds(routeMapDefaultBounds, { padding: [20, 20] });
+  } else {
+    routeMapInstance.setView([20, 0], 2);
   }
 }
 
@@ -1993,6 +2126,7 @@ document.getElementById("disconnectBtn").addEventListener("click", () => {
 document.getElementById("syncBtn").addEventListener("click", runSync);
 document.getElementById("staleSyncBtn").addEventListener("click", runSync);
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+document.getElementById("resetMapBtn").addEventListener("click", resetRouteMapView);
 document.getElementById("downloadCardBtn").addEventListener("click", downloadStatsCard);
 initDashboardFilters();
 initGranularityFilter();

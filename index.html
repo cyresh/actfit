@@ -728,6 +728,15 @@
     </div>
     <div class="divider"></div>
     <div class="placeholder-row">
+      <span style="opacity:0.7;">Only pulls activities newer than your last sync. <a href="#" id="fullResyncLink" style="color:var(--route);">Full resync</a> if something looks off.</span>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span id="bestEffortsStatusText">RUN SPLITS (1K–MARATHON)</span>
+      <button class="btn btn-ghost" id="bestEffortsBtn">Fetch splits</button>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
       <span>SESSION</span>
       <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
     </div>
@@ -779,10 +788,18 @@
       <canvas id="volumeChart" height="220"></canvas>
     </div>
 
-    <div class="section-title">Pace / speed trend — last 12 weeks</div>
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Pace / speed trend</span>
+      <div class="segmented" id="paceRangeFilter">
+        <button data-range="1m">1M</button>
+        <button data-range="6m" class="active">6M</button>
+        <button data-range="1y">1Y</button>
+        <button data-range="3y">3Y</button>
+        <button data-range="all">All</button>
+      </div>
+    </div>
     <div class="chart-card">
       <canvas id="paceChart" height="220"></canvas>
-      <p class="pace-hint hidden" id="paceHint">Select Run or Ride above to see a pace/speed trend — "All" mixes units so it's hidden.</p>
     </div>
 
     <div class="section-title">Activity calendar — last 12 months</div>
@@ -810,6 +827,11 @@
     <div class="section-title">Year-by-year — Run Stats</div>
     <div class="year-table-wrap" id="runYearTableWrap"></div>
 
+    <div class="section-title">Year-by-year — Run Fastest Splits</div>
+    <div class="year-table-wrap" id="runSplitsTableWrap">
+      <p class="empty-dash">No split data yet — click "Fetch splits" in your profile card above (uses Strava's own best-effort calculation, one-time per run activity).</p>
+    </div>
+
     <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
       <span>Distance &amp; elevation breakdown</span>
       <div class="segmented" id="granularityFilter">
@@ -832,6 +854,11 @@
         <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Run elevation gain (m)</div>
         <canvas id="runElevBreakdownChart" height="220"></canvas>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Active days</div>
+      <canvas id="activeDaysChart" height="220"></canvas>
     </div>
 
     <div class="section-title">Activities</div>
@@ -879,11 +906,6 @@
     </div>
   </div>
 
-  <p class="footer-note">
-    Stage 6 of 6 — polish: dark/light theme toggle (top right), a downloadable stats card (canvas-generated PNG, respects your current sport/range filter), and a mobile responsive pass. Chart.js and Leaflet are vendored locally in this repo (no third-party CDN calls) so nothing breaks behind restrictive networks. See <code>CONFIG</code> at the top of the script
-    below to point this at your own Strava API app and Worker.
-  </p>
-
 <script>
 /* =========================================================
    CONFIG — fill these in before deploying
@@ -898,9 +920,12 @@ const CONFIG = {
 const STORAGE_KEY = "strava_dash_tokens";
 const ACTIVITIES_KEY = "strava_dash_activities";
 const LAST_SYNC_KEY = "strava_dash_last_sync";
+const BEST_EFFORTS_KEY = "strava_dash_best_efforts";       // { [activityId]: [{name, elapsed_time}] }
+const BEST_EFFORTS_DONE_KEY = "strava_dash_best_efforts_done"; // array of activity ids already processed (resumable)
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 const RIDE_TYPES = new Set(["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]);
+const SPLIT_NAMES = ["1K", "5K", "10K", "15K", "Half-Marathon", "30K", "Marathon"];
 
 /* =========================================================
    Token storage helpers
@@ -932,6 +957,21 @@ function getLastSync() {
 }
 function setLastSync(ts) {
   localStorage.setItem(LAST_SYNC_KEY, String(ts));
+}
+
+function loadBestEfforts() {
+  const raw = localStorage.getItem(BEST_EFFORTS_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+function saveBestEfforts(obj) {
+  localStorage.setItem(BEST_EFFORTS_KEY, JSON.stringify(obj));
+}
+function loadBestEffortsDone() {
+  const raw = localStorage.getItem(BEST_EFFORTS_DONE_KEY);
+  return raw ? new Set(JSON.parse(raw)) : new Set();
+}
+function saveBestEffortsDone(set) {
+  localStorage.setItem(BEST_EFFORTS_DONE_KEY, JSON.stringify(Array.from(set)));
 }
 
 /* =========================================================
@@ -1012,8 +1052,9 @@ async function fetchAthlete(accessToken) {
    ========================================================= */
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
-async function fetchActivityPage(accessToken, page, perPage) {
+async function fetchActivityPage(accessToken, page, perPage, afterEpoch) {
   const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  if (afterEpoch) params.set("after", String(afterEpoch));
   const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?${params.toString()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -1022,13 +1063,22 @@ async function fetchActivityPage(accessToken, page, perPage) {
     // Rate limited — Strava sends limit info in headers, back off and retry once.
     const retryAfter = parseInt(res.headers.get("Retry-After") || "15", 10);
     await sleep(retryAfter * 1000);
-    return fetchActivityPage(accessToken, page, perPage);
+    return fetchActivityPage(accessToken, page, perPage, afterEpoch);
   }
   if (!res.ok) throw new Error(`Activity fetch failed (page ${page}): ${res.status}`);
   return res.json();
 }
 
-async function syncActivities(onProgress) {
+// Finds the most recent start_date already cached, so regular syncs only ask Strava
+// for activities newer than that — avoids re-walking your entire history every time.
+function newestCachedEpoch() {
+  const cached = Object.values(loadActivities());
+  if (cached.length === 0) return null;
+  const maxMs = Math.max(...cached.map((a) => new Date(a.start_date).getTime()));
+  return Math.floor(maxMs / 1000);
+}
+
+async function syncActivities(onProgress, forceFullResync = false) {
   const accessToken = await getValidAccessToken();
   if (!accessToken) throw new Error("Not connected");
 
@@ -1038,9 +1088,16 @@ async function syncActivities(onProgress) {
   let fetchedCount = 0;
   let newCount = 0;
 
+  // Incremental by default: only ask for activities after the newest one we already have,
+  // minus a small overlap buffer in case of same-second duplicates/clock skew.
+  const afterEpoch = forceFullResync ? null : (() => {
+    const newest = newestCachedEpoch();
+    return newest ? newest - 3600 : null; // 1h overlap buffer, harmless since merge is id-keyed
+  })();
+
   while (true) {
-    onProgress?.(`Fetching page ${page}…`);
-    const batch = await fetchActivityPage(accessToken, page, perPage);
+    onProgress?.(afterEpoch ? `Checking for new activities… (page ${page})` : `Fetching page ${page}…`);
+    const batch = await fetchActivityPage(accessToken, page, perPage, afterEpoch);
     if (!batch.length) break;
 
     for (const act of batch) {
@@ -1080,7 +1137,67 @@ async function syncActivities(onProgress) {
     rides: Object.values(cached).filter((a) => a.sport === "ride").length,
     fetchedCount,
     newCount,
+    wasIncremental: !!afterEpoch,
   };
+}
+
+/* =========================================================
+   Run splits — fetches Strava's own best_efforts per run activity.
+   Resumable: already-processed activity ids are skipped on re-run,
+   so stopping partway through and clicking again continues on.
+   Note: Strava's public API only populates best_efforts for Run
+   activities, not Rides — confirmed against their docs.
+   ========================================================= */
+let bestEffortsStopRequested = false;
+
+async function fetchActivityDetail(accessToken, id) {
+  const res = await fetch(`https://www.strava.com/api/v3/activities/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get("Retry-After") || "15", 10);
+    await sleep(retryAfter * 1000);
+    return fetchActivityDetail(accessToken, id);
+  }
+  if (!res.ok) throw new Error(`Activity detail fetch failed (id ${id}): ${res.status}`);
+  return res.json();
+}
+
+async function fetchRunSplits(onProgress) {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error("Not connected");
+
+  const runs = Object.values(loadActivities()).filter((a) => a.sport === "run");
+  const done = loadBestEffortsDone();
+  const pending = runs.filter((a) => !done.has(a.id));
+  const bestEfforts = loadBestEfforts();
+
+  bestEffortsStopRequested = false;
+  let processed = 0;
+
+  for (const run of pending) {
+    if (bestEffortsStopRequested) break;
+
+    onProgress?.(`Fetching splits… ${done.size}/${runs.length} runs done`);
+    const detail = await fetchActivityDetail(accessToken, run.id);
+    const efforts = (detail.best_efforts || [])
+      .filter((be) => SPLIT_NAMES.includes(be.name))
+      .map((be) => ({ name: be.name, elapsed_time: be.elapsed_time }));
+    bestEfforts[run.id] = efforts;
+    done.add(run.id);
+    processed++;
+
+    if (processed % 15 === 0) {
+      saveBestEfforts(bestEfforts);
+      saveBestEffortsDone(done);
+    }
+    await sleep(300); // pace well under Strava's 200/15min limit, shared with regular sync
+  }
+
+  saveBestEfforts(bestEfforts);
+  saveBestEffortsDone(done);
+
+  return { totalRuns: runs.length, done: done.size, stopped: bestEffortsStopRequested };
 }
 
 /* =========================================================
@@ -1108,6 +1225,13 @@ function showConnected(athlete) {
   refreshStatsFromCache();
   refreshStaleBanner();
   renderDashboard();
+
+  const runsTotal = Object.values(loadActivities()).filter((a) => a.sport === "run").length;
+  const doneCount = loadBestEffortsDone().size;
+  if (runsTotal > 0 && doneCount > 0 && doneCount < runsTotal) {
+    document.getElementById("bestEffortsBtn").textContent = "Resume splits";
+    document.getElementById("bestEffortsStatusText").textContent = `RUN SPLITS — ${doneCount}/${runsTotal} done`;
+  }
 }
 
 function refreshStatsFromCache() {
@@ -1151,7 +1275,7 @@ function refreshStaleBanner() {
   }
 }
 
-async function runSync() {
+async function runSync(forceFullResync = false) {
   const syncBtn = document.getElementById("syncBtn");
   const statusText = document.getElementById("syncStatusText");
   syncBtn.disabled = true;
@@ -1161,7 +1285,7 @@ async function runSync() {
   try {
     const result = await syncActivities((msg) => {
       statusText.innerHTML = `<span class="spinner"></span>${msg}`;
-    });
+    }, forceFullResync);
     refreshStatsFromCache();
     refreshStaleBanner();
     statusText.textContent = `SYNCED — ${result.newCount} new, ${result.total} total`;
@@ -1311,16 +1435,12 @@ function renderTrendCharts() {
   const buckets = last12WeekBuckets();
   const labels = buckets.map(weekLabel);
   const distancePerWeek = buckets.map(() => 0);
-  const timePerWeek = buckets.map(() => 0);
-  const distPerWeekForPace = buckets.map(() => 0);
 
   sportFiltered.forEach((a) => {
     const d = new Date(a.start_date_local);
     for (let i = buckets.length - 1; i >= 0; i--) {
       if (d >= buckets[i]) {
         distancePerWeek[i] += (a.distance || 0) / 1000; // km
-        timePerWeek[i] += a.moving_time || 0;
-        distPerWeekForPace[i] += a.distance || 0;
         break;
       }
     }
@@ -1349,60 +1469,166 @@ function renderTrendCharts() {
     },
   });
 
-  const paceHint = document.getElementById("paceHint");
-  const paceCanvas = document.getElementById("paceChart");
-  if (dashState.sport === "all") {
-    paceCanvas.classList.add("hidden");
-    paceHint.classList.remove("hidden");
-    if (paceChartInstance) { paceChartInstance.destroy(); paceChartInstance = null; }
-    return;
-  }
-  paceCanvas.classList.remove("hidden");
-  paceHint.classList.add("hidden");
+  renderPaceChart();
+}
 
-  let paceData, paceLabel;
-  if (dashState.sport === "run") {
-    // min per km, lower = faster
-    paceData = buckets.map((_, i) => {
-      if (distPerWeekForPace[i] === 0) return null;
-      const minPerKm = (timePerWeek[i] / 60) / (distPerWeekForPace[i] / 1000);
-      return Math.round(minPerKm * 100) / 100;
-    });
-    paceLabel = "min/km";
+/* =========================================================
+   Pace / speed trend — always shows both a Run pace line and a
+   Ride speed line, independent of the top sport filter, with its
+   own 1M/6M/1Y/3Y/All range picker.
+   ========================================================= */
+let paceRangeState = "6m";
+
+function paceRangeBuckets(range) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (range === "1m" || range === "6m" || range === "1y") {
+    const daysBack = { "1m": 30, "6m": 182, "1y": 365 }[range];
+    const start = startOfWeek(new Date(today.getTime() - daysBack * 24 * 60 * 60 * 1000));
+    const thisWeekStart = startOfWeek(today);
+    const buckets = [];
+    for (let d = new Date(start); d <= thisWeekStart; d.setDate(d.getDate() + 7)) {
+      buckets.push({ start: new Date(d), granularity: "week" });
+    }
+    return buckets;
+  }
+
+  // 3y / all — monthly buckets, coarser to keep the chart readable over a long span
+  let startDate;
+  if (range === "3y") {
+    startDate = new Date(today.getFullYear() - 3, today.getMonth(), 1);
   } else {
-    // km/h avg speed
-    paceData = buckets.map((_, i) => {
-      if (timePerWeek[i] === 0) return null;
-      const kmh = (distPerWeekForPace[i] / 1000) / (timePerWeek[i] / 3600);
-      return Math.round(kmh * 10) / 10;
-    });
-    paceLabel = "km/h";
+    const all = Object.values(loadActivities());
+    if (all.length === 0) return [];
+    const earliest = all.reduce((min, a) => {
+      const d = new Date(a.start_date_local);
+      return d < min ? d : min;
+    }, new Date());
+    startDate = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
   }
+  const buckets = [];
+  let cursor = new Date(startDate);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth(), 1);
+  while (cursor <= monthEnd) {
+    buckets.push({ start: new Date(cursor), granularity: "month" });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return buckets;
+}
 
+function paceBucketLabel(bucket) {
+  return bucket.granularity === "week"
+    ? weekLabel(bucket.start)
+    : bucket.start.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+}
+
+function paceBucketEnd(bucket) {
+  const d = new Date(bucket.start);
+  if (bucket.granularity === "week") d.setDate(d.getDate() + 7);
+  else d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
+function renderPaceChart() {
+  if (typeof Chart === "undefined") return;
+
+  const buckets = paceRangeBuckets(paceRangeState);
+  const labels = buckets.map(paceBucketLabel);
+
+  const runDist = buckets.map(() => 0);
+  const runTime = buckets.map(() => 0);
+  const rideDist = buckets.map(() => 0);
+  const rideTime = buckets.map(() => 0);
+
+  const all = Object.values(loadActivities());
+  all.forEach((a) => {
+    const d = new Date(a.start_date_local);
+    for (let i = 0; i < buckets.length; i++) {
+      if (d >= buckets[i].start && d < paceBucketEnd(buckets[i])) {
+        if (a.sport === "run") {
+          runDist[i] += a.distance || 0;
+          runTime[i] += a.moving_time || 0;
+        } else if (a.sport === "ride") {
+          rideDist[i] += a.distance || 0;
+          rideTime[i] += a.moving_time || 0;
+        }
+        break;
+      }
+    }
+  });
+
+  const runPaceData = buckets.map((_, i) => {
+    if (runDist[i] === 0) return null;
+    return Math.round(((runTime[i] / 60) / (runDist[i] / 1000)) * 100) / 100; // min/km
+  });
+  const rideSpeedData = buckets.map((_, i) => {
+    if (rideTime[i] === 0) return null;
+    return Math.round(((rideDist[i] / 1000) / (rideTime[i] / 3600)) * 10) / 10; // km/h
+  });
+
+  const canvas = document.getElementById("paceChart");
   if (paceChartInstance) paceChartInstance.destroy();
-  paceChartInstance = new Chart(paceCanvas, {
+  paceChartInstance = new Chart(canvas, {
     type: "line",
     data: {
       labels,
-      datasets: [{
-        label: paceLabel,
-        data: paceData,
-        borderColor: "#63C29B",
-        backgroundColor: "rgba(99,194,155,0.15)",
-        fill: true,
-        tension: 0.35,
-        spanGaps: true,
-        pointRadius: 3,
-      }],
+      datasets: [
+        {
+          label: "Run pace (min/km)",
+          data: runPaceData,
+          borderColor: "#FF5A36",
+          backgroundColor: "rgba(255,90,54,0.1)",
+          yAxisID: "yPace",
+          tension: 0.35,
+          spanGaps: true,
+          pointRadius: 2,
+        },
+        {
+          label: "Ride speed (km/h)",
+          data: rideSpeedData,
+          borderColor: "#63C29B",
+          backgroundColor: "rgba(99,194,155,0.1)",
+          yAxisID: "ySpeed",
+          tension: 0.35,
+          spanGaps: true,
+          pointRadius: 2,
+        },
+      ],
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } },
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } } },
+      },
       scales: {
-        x: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { display: false } },
-        y: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } }, grid: { color: "rgba(238,241,236,0.06)" } },
+        x: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 9 }, maxRotation: 60, minRotation: buckets.length > 20 ? 60 : 0 }, grid: { display: false } },
+        yPace: {
+          position: "left",
+          title: { display: true, text: "min/km", color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } },
+          ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } },
+          grid: { color: "rgba(238,241,236,0.06)" },
+        },
+        ySpeed: {
+          position: "right",
+          title: { display: true, text: "km/h", color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } },
+          ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 } },
+          grid: { display: false },
+        },
       },
     },
+  });
+}
+
+function initPaceRangeFilter() {
+  document.querySelectorAll("#paceRangeFilter button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#paceRangeFilter button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      paceRangeState = btn.dataset.range;
+      renderPaceChart();
+    });
   });
 }
 
@@ -1590,6 +1816,77 @@ function renderBreakdownCharts() {
     renderBreakdownChart("runBreakdownChart", { get current() { return runBreakdownChartInstance; }, set current(v) { runBreakdownChartInstance = v; } }, runSeries, "#FF5A36");
     renderBreakdownChart("runElevBreakdownChart", { get current() { return runElevBreakdownChartInstance; }, set current(v) { runElevBreakdownChartInstance = v; } }, runElevSeries, "#FF5A36");
   }
+
+  renderActiveDaysChart();
+}
+
+// Counts distinct calendar days with at least one activity (run or ride combined) per
+// bucket — a day with two activities still only counts once. Not affected by the top
+// sport filter, since "active days" is a consistency metric across all training.
+function buildActiveDaysSeries(activities, granularity) {
+  if (activities.length === 0) return { labels: [], values: [] };
+
+  const activeDaySet = new Set(activities.map((a) => a.start_date_local.slice(0, 10))); // YYYY-MM-DD, local string, no TZ conversion
+  const sortedDays = Array.from(activeDaySet).sort();
+  const firstDay = sortedDays[0];
+  const todayStr = localDateKey(new Date());
+
+  const firstKey = granularity === "yearly" ? firstDay.slice(0, 4) : firstDay.slice(0, 7);
+  const lastKey = granularity === "yearly" ? todayStr.slice(0, 4) : todayStr.slice(0, 7);
+
+  const keys = [];
+  if (granularity === "yearly") {
+    for (let y = parseInt(firstKey, 10); y <= parseInt(lastKey, 10); y++) keys.push(String(y));
+  } else {
+    let [y, m] = firstKey.split("-").map(Number);
+    const [ly, lm] = lastKey.split("-").map(Number);
+    while (y < ly || (y === ly && m <= lm)) {
+      keys.push(`${y}-${String(m).padStart(2, "0")}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+  }
+
+  const counts = {};
+  keys.forEach((k) => (counts[k] = 0));
+  activeDaySet.forEach((dayStr) => {
+    const k = granularity === "yearly" ? dayStr.slice(0, 4) : dayStr.slice(0, 7);
+    if (k in counts) counts[k]++;
+  });
+
+  return {
+    labels: keys.map((k) => bucketLabel(k, granularity)),
+    values: keys.map((k) => counts[k]),
+  };
+}
+
+let activeDaysChartInstance = null;
+
+function renderActiveDaysChart() {
+  if (typeof Chart === "undefined") return;
+  const all = Object.values(loadActivities());
+  const series = buildActiveDaysSeries(all, breakdownGranularity);
+
+  const canvas = document.getElementById("activeDaysChart");
+  if (activeDaysChartInstance) activeDaysChartInstance.destroy();
+  activeDaysChartInstance = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: series.labels,
+      datasets: [{ data: series.values, backgroundColor: "#63C29B", borderRadius: 2 }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y} active day${ctx.parsed.y === 1 ? "" : "s"}` } },
+      },
+      scales: {
+        x: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 9 }, maxRotation: 60, minRotation: 60 }, grid: { display: false } },
+        y: { ticks: { color: "#7C8A8A", font: { family: "JetBrains Mono", size: 10 }, precision: 0 }, grid: { color: "rgba(238,241,236,0.06)" } },
+      },
+    },
+  });
 }
 
 function initGranularityFilter() {
@@ -1816,6 +2113,61 @@ function renderYearTables() {
     const { columns, rows } = computeYearRows(runs, "run");
     runWrap.innerHTML = buildYearTableHtml("Run Stats", columns, rows, "run");
   }
+
+  renderRunSplitsTable();
+}
+
+function formatSplitTime(seconds) {
+  if (seconds == null) return "–";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.round(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function renderRunSplitsTable() {
+  const wrap = document.getElementById("runSplitsTableWrap");
+  const bestEfforts = loadBestEfforts();
+  const activityIds = Object.keys(bestEfforts);
+
+  if (activityIds.length === 0) {
+    wrap.innerHTML = `<p class="empty-dash">No split data yet — click "Fetch splits" in your profile card above (uses Strava's own best-effort calculation, one-time per run activity).</p>`;
+    return;
+  }
+
+  const activities = loadActivities();
+  const years = new Set();
+  const records = []; // { year, name, elapsed_time }
+
+  activityIds.forEach((id) => {
+    const activity = activities[id];
+    if (!activity) return;
+    const year = new Date(activity.start_date_local).getFullYear();
+    years.add(year);
+    (bestEfforts[id] || []).forEach((be) => {
+      records.push({ year, name: be.name, elapsed_time: be.elapsed_time });
+    });
+  });
+
+  const sortedYears = Array.from(years).sort((a, b) => b - a);
+  const columns = [...sortedYears, "All-Time"];
+
+  let thead = `<tr><th>Split</th>${columns.map((c) => `<th class="${c === "All-Time" ? "alltime" : ""}">${c}</th>`).join("")}</tr>`;
+  let body = "";
+
+  SPLIT_NAMES.forEach((splitName) => {
+    body += `<tr><td>${splitName}</td>${columns.map((c) => {
+      const matching = c === "All-Time"
+        ? records.filter((r) => r.name === splitName)
+        : records.filter((r) => r.name === splitName && r.year === c);
+      const best = matching.length ? Math.min(...matching.map((r) => r.elapsed_time)) : null;
+      return `<td class="${c === "All-Time" ? "alltime" : ""}">${formatSplitTime(best)}</td>`;
+    }).join("")}</tr>`;
+  });
+
+  wrap.innerHTML = `<table class="year-table"><thead>${thead}</thead><tbody>${body}</tbody></table>
+    <p class="map-note" style="padding:10px 14px 0;">Note: the same run can hold your fastest 5K <em>and</em> your fastest 30K if the pace held up — these are independent best segments within each run, not just whole-activity averages.</p>`;
 }
 
 function renderPRs() {
@@ -2118,18 +2470,57 @@ function downloadStatsCard() {
   link.click();
 }
 
+async function runFetchSplits() {
+  const btn = document.getElementById("bestEffortsBtn");
+  const statusText = document.getElementById("bestEffortsStatusText");
+
+  if (btn.dataset.running === "true") {
+    // currently running — this click means "stop"
+    bestEffortsStopRequested = true;
+    btn.textContent = "Stopping…";
+    btn.disabled = true;
+    return;
+  }
+
+  btn.dataset.running = "true";
+  btn.textContent = "Stop";
+
+  try {
+    const result = await fetchRunSplits((msg) => {
+      statusText.innerHTML = `<span class="spinner"></span>${msg}`;
+    });
+    statusText.textContent = result.stopped
+      ? `PAUSED — ${result.done}/${result.totalRuns} runs done, click Fetch splits to resume`
+      : `DONE — splits fetched for ${result.done}/${result.totalRuns} runs`;
+    renderRunSplitsTable();
+  } catch (e) {
+    statusText.textContent = "Split fetch failed — check connection and try again";
+  } finally {
+    btn.dataset.running = "false";
+    btn.disabled = false;
+    btn.textContent = "Fetch splits";
+  }
+}
 document.getElementById("connectBtn").addEventListener("click", connect);
 document.getElementById("disconnectBtn").addEventListener("click", () => {
   clearTokens();
   showLanding();
 });
-document.getElementById("syncBtn").addEventListener("click", runSync);
-document.getElementById("staleSyncBtn").addEventListener("click", runSync);
+document.getElementById("syncBtn").addEventListener("click", () => runSync(false));
+document.getElementById("staleSyncBtn").addEventListener("click", () => runSync(false));
+document.getElementById("fullResyncLink").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (confirm("Full resync will re-check your entire activity history against Strava. This can take a while for large histories. Continue?")) {
+    runSync(true);
+  }
+});
+document.getElementById("bestEffortsBtn").addEventListener("click", runFetchSplits);
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 document.getElementById("resetMapBtn").addEventListener("click", resetRouteMapView);
 document.getElementById("downloadCardBtn").addEventListener("click", downloadStatsCard);
 initDashboardFilters();
 initGranularityFilter();
+initPaceRangeFilter();
 initActivitiesListControls();
 initTheme();
 

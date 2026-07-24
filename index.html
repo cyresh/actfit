@@ -786,6 +786,47 @@
     width:100%;
     border-radius:6px;
     background:var(--surface-2);
+    display:block;
+  }
+  #activityCardStage{
+    position:relative;
+    width:100%;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  .drag-box{
+    position:absolute;
+    border:2px dashed var(--route);
+    background:rgba(255,90,54,0.08);
+    cursor:move;
+    box-sizing:border-box;
+    touch-action:none;
+  }
+  .drag-box .drag-label{
+    position:absolute;
+    top:-22px;
+    left:0;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--route);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    background:var(--ink);
+    padding:2px 6px;
+    border-radius:2px;
+    white-space:nowrap;
+  }
+  .resize-handle{
+    position:absolute;
+    right:-8px;
+    bottom:-8px;
+    width:16px;
+    height:16px;
+    background:var(--route);
+    border:2px solid var(--ink);
+    border-radius:50%;
+    cursor:nwse-resize;
+    touch-action:none;
   }
 </style>
 </head>
@@ -1093,8 +1134,13 @@
         <button class="btn btn-primary" id="activityCardDownloadBtn" style="margin-top:20px;width:100%;">Download card</button>
       </div>
       <div>
-        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">Preview</label>
-        <canvas id="activityCardPreview" width="1080" height="1080"></canvas>
+        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">Preview — drag boxes to move, drag the dot to resize</label>
+        <div id="activityCardStage">
+          <canvas id="activityCardPreview" width="1080" height="1080"></canvas>
+          <div class="drag-box" id="statsDragBox"><span class="drag-label">Stats</span><span class="resize-handle" id="statsResizeHandle"></span></div>
+          <div class="drag-box" id="routeDragBox"><span class="drag-label">Route</span><span class="resize-handle" id="routeResizeHandle"></span></div>
+        </div>
+        <button class="btn btn-ghost" id="resetLayoutBtn" style="margin-top:10px;font-size:12px;padding:8px 14px;">Reset layout</button>
       </div>
     </div>
   </div>
@@ -2884,13 +2930,23 @@ function downloadStatsCard() {
    ========================================================= */
 let activityCardState = { activityId: null, image: null }; // image = HTMLImageElement or null
 
+function defaultActivityCardLayout() {
+  return {
+    route: { x: 90 / 1080, y: 90 / 1080, w: (1080 - 180) / 1080, h: 300 / 1080 },
+    stats: { x: 70 / 1080, y: (1080 - 500) / 1080, scale: 1 },
+  };
+}
+let activityCardLayout = defaultActivityCardLayout();
+
 function openActivityCardModal(activityId) {
   const activity = loadActivities()[activityId];
   if (!activity) return;
   activityCardState = { activityId, image: null };
+  activityCardLayout = defaultActivityCardLayout();
   document.getElementById("activityCardImageInput").value = "";
   document.getElementById("activityCardModal").classList.remove("hidden");
   redrawActivityCardPreview();
+  positionDragBoxes();
 }
 
 function closeActivityCardModal() {
@@ -2905,7 +2961,7 @@ function getActivityCardSelection() {
   return selection;
 }
 
-function drawActivityCard(activity, image, selection) {
+function drawActivityCard(activity, image, selection, layout) {
   const canvas = document.createElement("canvas");
   const W = 1080, H = 1080;
   canvas.width = W;
@@ -2928,14 +2984,15 @@ function drawActivityCard(activity, image, selection) {
     ctx.fillRect(0, 0, W, H);
   }
 
-  // route line, drawn ABOVE the stats block, in the top third of the card
+  // route line — position/size driven by the draggable/resizable box in the UI
   if (selection.route && activity.map_summary_polyline) {
     const pts = decodePolyline(activity.map_summary_polyline);
     if (pts.length > 1) {
       const lats = pts.map((p) => p[0]), lngs = pts.map((p) => p[1]);
       const minLat = Math.min(...lats), maxLat = Math.max(...lats);
       const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-      const boxX = 90, boxY = 90, boxW = W - 180, boxH = 300;
+      const boxX = layout.route.x * W, boxY = layout.route.y * H;
+      const boxW = layout.route.w * W, boxH = layout.route.h * H;
       const spanLat = maxLat - minLat || 1e-6;
       const spanLng = maxLng - minLng || 1e-6;
       const scale = Math.min(boxW / spanLng, boxH / spanLat);
@@ -2944,7 +3001,7 @@ function drawActivityCard(activity, image, selection) {
       const offsetY = boxY + (boxH - drawnH) / 2;
 
       ctx.strokeStyle = "#FF5A36";
-      ctx.lineWidth = 6;
+      ctx.lineWidth = Math.max(2, 6 * Math.min(layout.route.w / (990 / 1080), 1.6));
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -2966,7 +3023,7 @@ function drawActivityCard(activity, image, selection) {
   ctx.font = "700 20px sans-serif";
   ctx.fillText("STRAVA DASH", 88, H - 53);
 
-  // stats block, bottom portion of the card
+  // stats block — position and scale driven by the draggable/resizable box in the UI
   const lines = [];
   if (selection.name) lines.push({ type: "title", text: activity.name });
   if (selection.date) lines.push({ type: "sub", text: new Date(activity.start_date_local).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) });
@@ -2987,35 +3044,37 @@ function drawActivityCard(activity, image, selection) {
   if (selection.elevation) bigStats.push({ label: "ELEVATION", value: `${Math.round(activity.total_elevation_gain || 0)} m` });
   if (selection.heartrate && activity.average_heartrate) bigStats.push({ label: "AVG HR", value: `${Math.round(activity.average_heartrate)} bpm` });
 
-  let y = H - 500;
+  const sc = layout.stats.scale;
+  const startX = layout.stats.x * W;
+  let y = layout.stats.y * H;
   lines.forEach((line) => {
     if (line.type === "title") {
       ctx.fillStyle = "#EEF1EC";
-      ctx.font = "800 46px sans-serif";
-      ctx.fillText(truncateCanvasText(ctx, line.text, W - 140), 70, y);
-      y += 44;
+      ctx.font = `800 ${Math.round(46 * sc)}px sans-serif`;
+      ctx.fillText(truncateCanvasText(ctx, line.text, W - startX - 60), startX, y);
+      y += 44 * sc;
     } else {
       ctx.fillStyle = "#B9C0BE";
-      ctx.font = "500 22px monospace";
-      ctx.fillText(line.text, 70, y);
-      y += 50;
+      ctx.font = `500 ${Math.round(22 * sc)}px monospace`;
+      ctx.fillText(line.text, startX, y);
+      y += 50 * sc;
     }
   });
 
-  y += 20;
+  y += 20 * sc;
   const cols = Math.min(bigStats.length, 2);
-  const colWidth = (W - 140) / Math.max(cols, 1);
+  const colWidth = (W - startX - 70) / Math.max(cols, 1);
   bigStats.forEach((s, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    const x = 70 + col * colWidth;
-    const rowY = y + row * 130;
+    const x = startX + col * colWidth;
+    const rowY = y + row * 130 * sc;
     ctx.fillStyle = "#7C8A8A";
-    ctx.font = "500 18px monospace";
+    ctx.font = `500 ${Math.round(18 * sc)}px monospace`;
     ctx.fillText(s.label, x, rowY);
     ctx.fillStyle = "#FF5A36";
-    ctx.font = "800 52px sans-serif";
-    ctx.fillText(s.value, x, rowY + 48);
+    ctx.font = `800 ${Math.round(52 * sc)}px sans-serif`;
+    ctx.fillText(s.value, x, rowY + 48 * sc);
   });
 
   return canvas;
@@ -3034,11 +3093,90 @@ function redrawActivityCardPreview() {
   const activity = loadActivities()[activityCardState.activityId];
   if (!activity) return;
   const selection = getActivityCardSelection();
-  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection);
+  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection, activityCardLayout);
   const previewCanvas = document.getElementById("activityCardPreview");
   const pctx = previewCanvas.getContext("2d");
   pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
   pctx.drawImage(sourceCanvas, 0, 0);
+}
+
+// Syncs the on-screen drag-box outlines with the current layout fractions,
+// scaled to however big the canvas is actually rendered on screen.
+function positionDragBoxes() {
+  const canvas = document.getElementById("activityCardPreview");
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0) return; // modal not visible yet
+
+  const statsBox = document.getElementById("statsDragBox");
+  const baseW = 340, baseH = 230; // visual indicator size at scale=1, in 1080-space
+  statsBox.style.left = `${activityCardLayout.stats.x * rect.width}px`;
+  statsBox.style.top = `${activityCardLayout.stats.y * rect.height}px`;
+  statsBox.style.width = `${(baseW * activityCardLayout.stats.scale / 1080) * rect.width}px`;
+  statsBox.style.height = `${(baseH * activityCardLayout.stats.scale / 1080) * rect.height}px`;
+
+  const routeBox = document.getElementById("routeDragBox");
+  routeBox.style.left = `${activityCardLayout.route.x * rect.width}px`;
+  routeBox.style.top = `${activityCardLayout.route.y * rect.height}px`;
+  routeBox.style.width = `${activityCardLayout.route.w * rect.width}px`;
+  routeBox.style.height = `${activityCardLayout.route.h * rect.height}px`;
+}
+
+// Generic drag-to-move + handle-to-resize wiring, shared by the stats and route boxes.
+function initDragResize(boxId, handleId, getLayout, isRoute) {
+  const box = document.getElementById(boxId);
+  const handle = document.getElementById(handleId);
+  let mode = null; // "move" | "resize"
+  let startPointer = { x: 0, y: 0 };
+  let startLayout = null;
+
+  function canvasRect() {
+    return document.getElementById("activityCardPreview").getBoundingClientRect();
+  }
+
+  box.addEventListener("pointerdown", (e) => {
+    if (e.target === handle) return;
+    mode = "move";
+    box.setPointerCapture(e.pointerId);
+    startPointer = { x: e.clientX, y: e.clientY };
+    const L = getLayout();
+    startLayout = { x: L.x, y: L.y };
+  });
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    mode = "resize";
+    handle.setPointerCapture(e.pointerId);
+    startPointer = { x: e.clientX, y: e.clientY };
+    const L = getLayout();
+    startLayout = isRoute ? { w: L.w, h: L.h } : { scale: L.scale };
+  });
+
+  function onMove(e) {
+    if (!mode) return;
+    const rect = canvasRect();
+    if (rect.width === 0) return;
+    const dx = (e.clientX - startPointer.x) / rect.width;
+    const dy = (e.clientY - startPointer.y) / rect.height;
+    const L = getLayout();
+
+    if (mode === "move") {
+      L.x = Math.min(Math.max(startLayout.x + dx, 0), 0.85);
+      L.y = Math.min(Math.max(startLayout.y + dy, 0), 0.9);
+    } else if (mode === "resize") {
+      if (isRoute) {
+        L.w = Math.min(Math.max(startLayout.w + dx, 0.15), 0.95);
+        L.h = Math.min(Math.max(startLayout.h + dy, 0.1), 0.6);
+      } else {
+        L.scale = Math.min(Math.max(startLayout.scale + dx * 3, 0.4), 2.5);
+      }
+    }
+    positionDragBoxes();
+    redrawActivityCardPreview();
+  }
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", () => { mode = null; });
+  window.addEventListener("resize", positionDragBoxes);
 }
 
 function initActivityCardModal() {
@@ -3066,12 +3204,20 @@ function initActivityCardModal() {
   document.getElementById("activityCardDownloadBtn").addEventListener("click", () => {
     const activity = loadActivities()[activityCardState.activityId];
     if (!activity) return;
-    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection());
+    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout);
     const link = document.createElement("a");
     link.download = `strava-dash-${activity.sport}-${activity.id}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   });
+  document.getElementById("resetLayoutBtn").addEventListener("click", () => {
+    activityCardLayout = defaultActivityCardLayout();
+    positionDragBoxes();
+    redrawActivityCardPreview();
+  });
+
+  initDragResize("statsDragBox", "statsResizeHandle", () => activityCardLayout.stats, false);
+  initDragResize("routeDragBox", "routeResizeHandle", () => activityCardLayout.route, true);
 
   // event delegation: "Card" buttons are re-created on every activities-list render,
   // so a single delegated listener on the (stable) table avoids re-binding each time

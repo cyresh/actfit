@@ -1069,6 +1069,37 @@
     <p class="map-note">Rank only shows for Strava subscribers — Strava doesn't expose it for free accounts via the API.</p>
   </div>
 
+<div class="modal-overlay hidden" id="activityCardModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Activity card</div>
+      <button class="modal-close" id="activityCardModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-controls">
+        <label>Background image (optional)</label>
+        <input type="file" id="activityCardImageInput" accept="image/*">
+        <label>Stats to include</label>
+        <div class="checklist" id="activityCardChecklist">
+          <label><input type="checkbox" value="name" checked> Activity name</label>
+          <label><input type="checkbox" value="date" checked> Date</label>
+          <label><input type="checkbox" value="distance" checked> Distance</label>
+          <label><input type="checkbox" value="time" checked> Moving time</label>
+          <label><input type="checkbox" value="pace" checked> Pace / speed</label>
+          <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
+          <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
+          <label><input type="checkbox" value="route" checked> Route line</label>
+        </div>
+        <button class="btn btn-primary" id="activityCardDownloadBtn" style="margin-top:20px;width:100%;">Download card</button>
+      </div>
+      <div>
+        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">Preview</label>
+        <canvas id="activityCardPreview" width="1080" height="1080"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================
    CONFIG — fill these in before deploying
@@ -3222,36 +3253,6 @@ initTheme();
 
 boot();
 </script>
-<div class="modal-overlay hidden" id="activityCardModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">Activity card</div>
-      <button class="modal-close" id="activityCardModalClose">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="modal-controls">
-        <label>Background image (optional)</label>
-        <input type="file" id="activityCardImageInput" accept="image/*">
-        <label>Stats to include</label>
-        <div class="checklist" id="activityCardChecklist">
-          <label><input type="checkbox" value="name" checked> Activity name</label>
-          <label><input type="checkbox" value="date" checked> Date</label>
-          <label><input type="checkbox" value="distance" checked> Distance</label>
-          <label><input type="checkbox" value="time" checked> Moving time</label>
-          <label><input type="checkbox" value="pace" checked> Pace / speed</label>
-          <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
-          <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
-          <label><input type="checkbox" value="route" checked> Route line</label>
-        </div>
-        <button class="btn btn-primary" id="activityCardDownloadBtn" style="margin-top:20px;width:100%;">Download card</button>
-      </div>
-      <div>
-        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">Preview</label>
-        <canvas id="activityCardPreview" width="1080" height="1080"></canvas>
-      </div>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

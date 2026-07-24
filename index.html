@@ -664,6 +664,129 @@
     position:sticky;
     bottom:0;
   }
+
+  /* ---------- stage 10: mini downloads + activity card builder ---------- */
+  .mini-download-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--muted);
+    width:26px;height:26px;
+    border-radius:4px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    flex-shrink:0;
+    transition:border-color .15s ease,color .15s ease;
+  }
+  .mini-download-btn:hover{ border-color:var(--route); color:var(--route); }
+  .pr-card{ position:relative; }
+  .pr-card .mini-download-btn{ position:absolute; top:14px; right:14px; }
+  .section-title-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin:36px 0 14px;
+  }
+  .row-card-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--muted);
+    padding:4px 8px;
+    border-radius:4px;
+    cursor:pointer;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    white-space:nowrap;
+  }
+  .row-card-btn:hover{ border-color:var(--route); color:var(--route); }
+
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.7);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+    padding:20px;
+  }
+  .modal-box{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    max-width:900px;
+    width:100%;
+    max-height:90vh;
+    overflow-y:auto;
+    padding:24px;
+  }
+  .modal-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .modal-title{
+    font-family:'Big Shoulders Display',sans-serif;
+    font-weight:700;
+    font-size:22px;
+    text-transform:uppercase;
+    color:var(--chalk);
+  }
+  .modal-close{
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    font-size:22px;
+    cursor:pointer;
+    line-height:1;
+  }
+  .modal-close:hover{ color:var(--route); }
+  .modal-body{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:24px;
+  }
+  @media (max-width:640px){
+    .modal-body{ grid-template-columns:1fr; }
+  }
+  .modal-controls label{
+    display:block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    margin:14px 0 8px;
+  }
+  .modal-controls input[type="file"]{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--chalk);
+  }
+  .checklist{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .checklist label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    color:var(--chalk);
+    text-transform:none;
+    letter-spacing:0;
+    margin:0;
+  }
+  #activityCardPreview{
+    width:100%;
+    border-radius:6px;
+    background:var(--surface-2);
+  }
 </style>
 </head>
 <body>
@@ -734,6 +857,11 @@
     <div class="placeholder-row">
       <span id="bestEffortsStatusText">RUN SPLITS (1K–MARATHON)</span>
       <button class="btn btn-ghost" id="bestEffortsBtn">Fetch splits</button>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span id="segmentsStatusText">STARRED SEGMENTS</span>
+      <button class="btn btn-ghost" id="segmentsBtn">Fetch segments</button>
     </div>
     <div class="divider"></div>
     <div class="placeholder-row">
@@ -821,13 +949,22 @@
       </div>
     </div>
 
-    <div class="section-title">Year-by-year — Ride Stats</div>
+    <div class="section-title-row">
+      <span class="section-title" style="margin:0;">Year-by-year — Ride Stats</span>
+      <button class="mini-download-btn" id="downloadRideYearTableBtn" title="Download this table">↓</button>
+    </div>
     <div class="year-table-wrap" id="rideYearTableWrap"></div>
 
-    <div class="section-title">Year-by-year — Run Stats</div>
+    <div class="section-title-row">
+      <span class="section-title" style="margin:0;">Year-by-year — Run Stats</span>
+      <button class="mini-download-btn" id="downloadRunYearTableBtn" title="Download this table">↓</button>
+    </div>
     <div class="year-table-wrap" id="runYearTableWrap"></div>
 
-    <div class="section-title">Year-by-year — Run Fastest Splits</div>
+    <div class="section-title-row">
+      <span class="section-title" style="margin:0;">Year-by-year — Run Fastest Splits</span>
+      <button class="mini-download-btn" id="downloadRunSplitsTableBtn" title="Download this table">↓</button>
+    </div>
     <div class="year-table-wrap" id="runSplitsTableWrap">
       <p class="empty-dash">No split data yet — click "Fetch splits" in your profile card above (uses Strava's own best-effort calculation, one-time per run activity).</p>
     </div>
@@ -878,6 +1015,7 @@
             <th data-sort="moving_time">Moving Time</th>
             <th data-sort="average_heartrate">Heart Rate</th>
             <th data-sort="total_elevation_gain">Elevation</th>
+            <th>Card</th>
           </tr>
         </thead>
         <tbody id="activitiesTableBody"></tbody>
@@ -888,6 +1026,7 @@
             <td id="totalsTime">—</td>
             <td id="totalsHr">—</td>
             <td id="totalsElevation">—</td>
+            <td></td>
           </tr>
         </tfoot>
       </table>
@@ -904,6 +1043,30 @@
       <div id="routeMap"></div>
       <p class="map-note">Tiles load from OpenStreetMap/CARTO over the network — routes are decoded and drawn from your cached data either way.</p>
     </div>
+
+    <div class="section-title">Starred segments</div>
+    <div class="activities-controls">
+      <span class="activities-count" id="segmentsCount"></span>
+    </div>
+    <div class="activities-scroll">
+      <table class="activities-table" id="segmentsTable">
+        <thead>
+          <tr>
+            <th data-sort="name">Name</th>
+            <th data-sort="activity_type">Type</th>
+            <th data-sort="distance">Distance</th>
+            <th data-sort="average_grade">Avg Grade</th>
+            <th data-sort="pr_elapsed_time">PR Time</th>
+            <th data-sort="effort_count">Attempts</th>
+            <th data-sort="pr_rank">Rank</th>
+          </tr>
+        </thead>
+        <tbody id="segmentsTableBody">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);">No starred segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="map-note">Rank only shows for Strava subscribers — Strava doesn't expose it for free accounts via the API.</p>
   </div>
 
 <script>
@@ -922,6 +1085,7 @@ const ACTIVITIES_KEY = "strava_dash_activities";
 const LAST_SYNC_KEY = "strava_dash_last_sync";
 const BEST_EFFORTS_KEY = "strava_dash_best_efforts";       // { [activityId]: [{name, elapsed_time}] }
 const BEST_EFFORTS_DONE_KEY = "strava_dash_best_efforts_done"; // array of activity ids already processed (resumable)
+const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + athlete stats} }
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 const RIDE_TYPES = new Set(["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]);
@@ -972,6 +1136,14 @@ function loadBestEffortsDone() {
 }
 function saveBestEffortsDone(set) {
   localStorage.setItem(BEST_EFFORTS_DONE_KEY, JSON.stringify(Array.from(set)));
+}
+
+function loadSegments() {
+  const raw = localStorage.getItem(SEGMENTS_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+function saveSegments(obj) {
+  localStorage.setItem(SEGMENTS_KEY, JSON.stringify(obj));
 }
 
 /* =========================================================
@@ -1201,6 +1373,88 @@ async function fetchRunSplits(onProgress) {
 }
 
 /* =========================================================
+   Starred segments — fetches your starred list, then per-segment
+   detail for athlete_segment_stats (PR time, attempt count, and
+   rank if you're a Strava subscriber — free accounts don't get
+   rank via the API).
+   ========================================================= */
+let segmentsStopRequested = false;
+
+async function fetchStarredSegmentsList(accessToken) {
+  const all = [];
+  let page = 1;
+  while (true) {
+    const params = new URLSearchParams({ page: String(page), per_page: "100" });
+    const res = await fetch(`https://www.strava.com/api/v3/segments/starred?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get("Retry-After") || "15", 10);
+      await sleep(retryAfter * 1000);
+      continue;
+    }
+    if (!res.ok) throw new Error(`Starred segments fetch failed: ${res.status}`);
+    const batch = await res.json();
+    all.push(...batch);
+    if (batch.length < 100) break;
+    page++;
+    await sleep(250);
+  }
+  return all;
+}
+
+async function fetchSegmentDetail(accessToken, id) {
+  const res = await fetch(`https://www.strava.com/api/v3/segments/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get("Retry-After") || "15", 10);
+    await sleep(retryAfter * 1000);
+    return fetchSegmentDetail(accessToken, id);
+  }
+  if (!res.ok) throw new Error(`Segment detail fetch failed (id ${id}): ${res.status}`);
+  return res.json();
+}
+
+async function fetchStarredSegments(onProgress) {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error("Not connected");
+
+  onProgress?.("Fetching starred segments list…");
+  const starred = await fetchStarredSegmentsList(accessToken);
+  const segments = loadSegments();
+  segmentsStopRequested = false;
+  let processed = 0;
+
+  for (const seg of starred) {
+    if (segmentsStopRequested) break;
+    onProgress?.(`Fetching segment details… ${processed}/${starred.length}`);
+    const detail = await fetchSegmentDetail(accessToken, seg.id);
+    const stats = detail.athlete_segment_stats || {};
+    segments[seg.id] = {
+      id: seg.id,
+      name: seg.name,
+      activity_type: seg.activity_type, // "Run" or "Ride"
+      distance: seg.distance,
+      average_grade: seg.average_grade,
+      city: seg.city,
+      state: seg.state,
+      star_count: seg.star_count,
+      pr_elapsed_time: stats.pr_elapsed_time ?? null,
+      pr_date: stats.pr_date ?? null,
+      effort_count: stats.effort_count ?? null,
+      pr_rank: stats.pr_rank ?? null, // only present for subscribers
+    };
+    processed++;
+    if (processed % 10 === 0) saveSegments(segments);
+    await sleep(300);
+  }
+
+  saveSegments(segments);
+  return { total: starred.length, done: processed, stopped: segmentsStopRequested };
+}
+
+/* =========================================================
    UI state
    ========================================================= */
 function showLanding(errorMsg) {
@@ -1231,6 +1485,12 @@ function showConnected(athlete) {
   if (runsTotal > 0 && doneCount > 0 && doneCount < runsTotal) {
     document.getElementById("bestEffortsBtn").textContent = "Resume splits";
     document.getElementById("bestEffortsStatusText").textContent = `RUN SPLITS — ${doneCount}/${runsTotal} done`;
+  }
+
+  renderSegmentsTable();
+  const segCount = Object.keys(loadSegments()).length;
+  if (segCount > 0) {
+    document.getElementById("segmentsStatusText").textContent = `${segCount} STARRED SEGMENTS`;
   }
 }
 
@@ -1971,6 +2231,7 @@ function renderActivitiesList() {
       <td>${time}</td>
       <td class="hr-cell" style="${hrStyle}">${hr ? hr + " bpm" : "—"}</td>
       <td>${elev} m</td>
+      <td><button class="row-card-btn" data-activity-card-id="${a.id}">Card</button></td>
     </tr>`;
   }).join("");
 
@@ -1997,6 +2258,7 @@ function initActivitiesListControls() {
     renderActivitiesList();
   });
   document.querySelectorAll("table.activities-table thead th").forEach((th) => {
+    if (!th.dataset.sort) return; // e.g. the "Card" column has no sort field
     th.addEventListener("click", () => {
       const field = th.dataset.sort;
       if (activityListState.sortField === field) {
@@ -2066,6 +2328,8 @@ function computeYearRows(activities, sport) {
   return { columns, rows };
 }
 
+const yearTableCardData = { ride: null, run: null, splits: null };
+
 function buildYearTableHtml(title, columns, rows, sport) {
   const bucketDefs = sport === "run"
     ? [["k10", "10K Runs"], ["hm", "HM Runs"], ["k32", "32K Runs"], ["fm", "FM Runs"]]
@@ -2073,11 +2337,11 @@ function buildYearTableHtml(title, columns, rows, sport) {
 
   let thead = `<tr><th>Year</th>${columns.map((c) => `<th class="${c === "All-Time" ? "alltime" : ""}">${c}</th>`).join("")}</tr>`;
 
+  const rowDefs = []; // for card export
   function metricRow(label, fn) {
-    return `<tr><td>${label}</td>${columns.map((c) => {
-      const v = fn(rows[c]);
-      return `<td class="${c === "All-Time" ? "alltime" : ""}">${v}</td>`;
-    }).join("")}</tr>`;
+    const values = columns.map((c) => fn(rows[c]));
+    rowDefs.push({ label, values });
+    return `<tr><td>${label}</td>${columns.map((c, i) => `<td class="${c === "All-Time" ? "alltime" : ""}">${values[i]}</td>`).join("")}</tr>`;
   }
 
   let body = "";
@@ -2089,6 +2353,7 @@ function buildYearTableHtml(title, columns, rows, sport) {
     body += metricRow(label, (r) => (r.buckets[key] ? formatInt(r.buckets[key]) : "–"));
   });
 
+  yearTableCardData[sport] = { title, columns, rowDefs };
   return `<table class="year-table"><thead>${thead}</thead><tbody>${body}</tbody></table>`;
 }
 
@@ -2102,6 +2367,7 @@ function renderYearTables() {
 
   if (rides.length === 0) {
     rideWrap.innerHTML = `<p class="empty-dash">No ride data yet.</p>`;
+    yearTableCardData.ride = null;
   } else {
     const { columns, rows } = computeYearRows(rides, "ride");
     rideWrap.innerHTML = buildYearTableHtml("Ride Stats", columns, rows, "ride");
@@ -2109,6 +2375,7 @@ function renderYearTables() {
 
   if (runs.length === 0) {
     runWrap.innerHTML = `<p class="empty-dash">No run data yet.</p>`;
+    yearTableCardData.run = null;
   } else {
     const { columns, rows } = computeYearRows(runs, "run");
     runWrap.innerHTML = buildYearTableHtml("Run Stats", columns, rows, "run");
@@ -2133,6 +2400,7 @@ function renderRunSplitsTable() {
 
   if (activityIds.length === 0) {
     wrap.innerHTML = `<p class="empty-dash">No split data yet — click "Fetch splits" in your profile card above (uses Strava's own best-effort calculation, one-time per run activity).</p>`;
+    yearTableCardData.splits = null;
     return;
   }
 
@@ -2155,19 +2423,123 @@ function renderRunSplitsTable() {
 
   let thead = `<tr><th>Split</th>${columns.map((c) => `<th class="${c === "All-Time" ? "alltime" : ""}">${c}</th>`).join("")}</tr>`;
   let body = "";
+  const rowDefs = [];
 
   SPLIT_NAMES.forEach((splitName) => {
-    body += `<tr><td>${splitName}</td>${columns.map((c) => {
+    const values = columns.map((c) => {
       const matching = c === "All-Time"
         ? records.filter((r) => r.name === splitName)
         : records.filter((r) => r.name === splitName && r.year === c);
       const best = matching.length ? Math.min(...matching.map((r) => r.elapsed_time)) : null;
-      return `<td class="${c === "All-Time" ? "alltime" : ""}">${formatSplitTime(best)}</td>`;
-    }).join("")}</tr>`;
+      return formatSplitTime(best);
+    });
+    rowDefs.push({ label: splitName, values });
+    body += `<tr><td>${splitName}</td>${columns.map((c, i) => `<td class="${c === "All-Time" ? "alltime" : ""}">${values[i]}</td>`).join("")}</tr>`;
   });
+
+  yearTableCardData.splits = { title: "Run Fastest Splits", columns, rowDefs };
 
   wrap.innerHTML = `<table class="year-table"><thead>${thead}</thead><tbody>${body}</tbody></table>
     <p class="map-note" style="padding:10px 14px 0;">Note: the same run can hold your fastest 5K <em>and</em> your fastest 30K if the pace held up — these are independent best segments within each run, not just whole-activity averages.</p>`;
+}
+
+/* =========================================================
+   Segments table (sortable, click headers — same pattern as
+   the activities list)
+   ========================================================= */
+const segmentListState = { sortField: "star_count", sortDir: "desc" };
+
+function renderSegmentsTable() {
+  const segments = Object.values(loadSegments());
+  const tbody = document.getElementById("segmentsTableBody");
+  const countEl = document.getElementById("segmentsCount");
+
+  if (segments.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No starred segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>`;
+    countEl.textContent = "";
+    return;
+  }
+
+  const { sortField, sortDir } = segmentListState;
+  const sorted = [...segments].sort((a, b) => {
+    let av = a[sortField], bv = b[sortField];
+    if (sortField === "name" || sortField === "activity_type") { av = (av || "").toLowerCase(); bv = (bv || "").toLowerCase(); }
+    if (av == null) av = sortDir === "asc" ? Infinity : -Infinity;
+    if (bv == null) bv = sortDir === "asc" ? Infinity : -Infinity;
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  document.querySelectorAll("#segmentsTable thead th").forEach((th) => {
+    const base = th.textContent.replace(/ [▲▼]$/, "");
+    th.textContent = th.dataset.sort === sortField ? `${base} ${sortDir === "asc" ? "▲" : "▼"}` : base;
+  });
+
+  tbody.innerHTML = sorted.map((s) => {
+    const distKm = formatKm(s.distance || 0);
+    const grade = s.average_grade != null ? `${s.average_grade.toFixed(1)}%` : "—";
+    const prTime = s.pr_elapsed_time != null ? formatSplitTime(s.pr_elapsed_time) : "—";
+    const attempts = s.effort_count != null ? s.effort_count : "—";
+    const rank = s.pr_rank != null ? `#${s.pr_rank}` : "—";
+    return `<tr>
+      <td title="${s.name}"><a href="https://www.strava.com/segments/${s.id}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-color:var(--line);">${s.name}</a></td>
+      <td>${s.activity_type || "—"}</td>
+      <td>${distKm} km</td>
+      <td>${grade}</td>
+      <td>${prTime}</td>
+      <td>${attempts}</td>
+      <td>${rank}</td>
+    </tr>`;
+  }).join("");
+
+  countEl.textContent = `${sorted.length} starred segments`;
+}
+
+function initSegmentsControls() {
+  document.querySelectorAll("#segmentsTable thead th").forEach((th) => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort;
+      if (segmentListState.sortField === field) {
+        segmentListState.sortDir = segmentListState.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        segmentListState.sortField = field;
+        segmentListState.sortDir = "desc";
+      }
+      renderSegmentsTable();
+    });
+  });
+}
+
+async function runFetchSegments() {
+  const btn = document.getElementById("segmentsBtn");
+  const statusText = document.getElementById("segmentsStatusText");
+
+  if (btn.dataset.running === "true") {
+    segmentsStopRequested = true;
+    btn.textContent = "Stopping…";
+    btn.disabled = true;
+    return;
+  }
+
+  btn.dataset.running = "true";
+  btn.textContent = "Stop";
+
+  try {
+    const result = await fetchStarredSegments((msg) => {
+      statusText.innerHTML = `<span class="spinner"></span>${msg}`;
+    });
+    statusText.textContent = result.stopped
+      ? `PAUSED — ${result.done}/${result.total} segments done`
+      : `DONE — ${result.done} starred segments fetched`;
+    renderSegmentsTable();
+  } catch (e) {
+    statusText.textContent = "Segment fetch failed — check connection and try again";
+  } finally {
+    btn.dataset.running = "false";
+    btn.disabled = false;
+    btn.textContent = "Fetch segments";
+  }
 }
 
 function renderPRs() {
@@ -2220,10 +2592,15 @@ function renderPRs() {
     const el = document.createElement("div");
     el.className = "pr-card";
     el.innerHTML = `
+      <button class="mini-download-btn" title="Download this card">↓</button>
       <div class="pr-value">${c.value}<span class="unit">${c.unit}</span></div>
       <div class="pr-label">${c.label}</div>
       <div class="pr-meta" title="${c.meta}">${c.meta}</div>
     `;
+    el.querySelector(".mini-download-btn").addEventListener("click", () => {
+      const canvas = drawMiniStatCard(c.label, `${c.value}${c.unit}`, c.meta);
+      downloadCanvas(canvas, `strava-dash-${c.label.toLowerCase().replace(/\s+/g, "-")}.png`);
+    });
     grid.appendChild(el);
   });
 }
@@ -2470,6 +2847,306 @@ function downloadStatsCard() {
   link.click();
 }
 
+/* =========================================================
+   Stage 10: per-activity downloadable card (image picker +
+   custom stat checklist + route line drawn above the stats)
+   ========================================================= */
+let activityCardState = { activityId: null, image: null }; // image = HTMLImageElement or null
+
+function openActivityCardModal(activityId) {
+  const activity = loadActivities()[activityId];
+  if (!activity) return;
+  activityCardState = { activityId, image: null };
+  document.getElementById("activityCardImageInput").value = "";
+  document.getElementById("activityCardModal").classList.remove("hidden");
+  redrawActivityCardPreview();
+}
+
+function closeActivityCardModal() {
+  document.getElementById("activityCardModal").classList.add("hidden");
+}
+
+function getActivityCardSelection() {
+  const selection = {};
+  document.querySelectorAll("#activityCardChecklist input[type=checkbox]").forEach((cb) => {
+    selection[cb.value] = cb.checked;
+  });
+  return selection;
+}
+
+function drawActivityCard(activity, image, selection) {
+  const canvas = document.createElement("canvas");
+  const W = 1080, H = 1080;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // background: picked image (cover-fit) or a plain dark fallback
+  ctx.fillStyle = "#12171A";
+  ctx.fillRect(0, 0, W, H);
+  if (image) {
+    const scale = Math.max(W / image.width, H / image.height);
+    const w = image.width * scale, h = image.height * scale;
+    ctx.drawImage(image, (W - w) / 2, (H - h) / 2, w, h);
+    // dark scrim so text stays readable over any photo
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, "rgba(18,23,26,0.55)");
+    grad.addColorStop(0.55, "rgba(18,23,26,0.35)");
+    grad.addColorStop(1, "rgba(18,23,26,0.9)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // route line, drawn ABOVE the stats block, in the top third of the card
+  if (selection.route && activity.map_summary_polyline) {
+    const pts = decodePolyline(activity.map_summary_polyline);
+    if (pts.length > 1) {
+      const lats = pts.map((p) => p[0]), lngs = pts.map((p) => p[1]);
+      const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+      const boxX = 90, boxY = 90, boxW = W - 180, boxH = 300;
+      const spanLat = maxLat - minLat || 1e-6;
+      const spanLng = maxLng - minLng || 1e-6;
+      const scale = Math.min(boxW / spanLng, boxH / spanLat);
+      const drawnW = spanLng * scale, drawnH = spanLat * scale;
+      const offsetX = boxX + (boxW - drawnW) / 2;
+      const offsetY = boxY + (boxH - drawnH) / 2;
+
+      ctx.strokeStyle = "#FF5A36";
+      ctx.lineWidth = 6;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      pts.forEach(([lat, lng], i) => {
+        const x = offsetX + (lng - minLng) * scale;
+        const y = offsetY + (maxLat - lat) * scale; // invert lat: north = up = smaller y
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+  }
+
+  // brand mark
+  ctx.fillStyle = "#FF5A36";
+  ctx.beginPath();
+  ctx.arc(70, H - 60, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#EEF1EC";
+  ctx.font = "700 20px sans-serif";
+  ctx.fillText("STRAVA DASH", 88, H - 53);
+
+  // stats block, bottom portion of the card
+  const lines = [];
+  if (selection.name) lines.push({ type: "title", text: activity.name });
+  if (selection.date) lines.push({ type: "sub", text: new Date(activity.start_date_local).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) });
+
+  const bigStats = [];
+  if (selection.distance) bigStats.push({ label: "DISTANCE", value: `${formatKm(activity.distance || 0)} km` });
+  if (selection.time) bigStats.push({ label: "TIME", value: formatHoursMinutes(activity.moving_time || 0) });
+  if (selection.pace) {
+    if (activity.sport === "run" && activity.distance) {
+      const minPerKm = (activity.moving_time / 60) / (activity.distance / 1000);
+      const m = Math.floor(minPerKm), s = Math.round((minPerKm - m) * 60);
+      bigStats.push({ label: "PACE", value: `${m}:${String(s).padStart(2, "0")}/km` });
+    } else if (activity.sport === "ride" && activity.moving_time) {
+      const kmh = (activity.distance / 1000) / (activity.moving_time / 3600);
+      bigStats.push({ label: "SPEED", value: `${kmh.toFixed(1)} km/h` });
+    }
+  }
+  if (selection.elevation) bigStats.push({ label: "ELEVATION", value: `${Math.round(activity.total_elevation_gain || 0)} m` });
+  if (selection.heartrate && activity.average_heartrate) bigStats.push({ label: "AVG HR", value: `${Math.round(activity.average_heartrate)} bpm` });
+
+  let y = H - 500;
+  lines.forEach((line) => {
+    if (line.type === "title") {
+      ctx.fillStyle = "#EEF1EC";
+      ctx.font = "800 46px sans-serif";
+      ctx.fillText(truncateCanvasText(ctx, line.text, W - 140), 70, y);
+      y += 44;
+    } else {
+      ctx.fillStyle = "#B9C0BE";
+      ctx.font = "500 22px monospace";
+      ctx.fillText(line.text, 70, y);
+      y += 50;
+    }
+  });
+
+  y += 20;
+  const cols = Math.min(bigStats.length, 2);
+  const colWidth = (W - 140) / Math.max(cols, 1);
+  bigStats.forEach((s, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = 70 + col * colWidth;
+    const rowY = y + row * 130;
+    ctx.fillStyle = "#7C8A8A";
+    ctx.font = "500 18px monospace";
+    ctx.fillText(s.label, x, rowY);
+    ctx.fillStyle = "#FF5A36";
+    ctx.font = "800 52px sans-serif";
+    ctx.fillText(s.value, x, rowY + 48);
+  });
+
+  return canvas;
+}
+
+function truncateCanvasText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let truncated = text;
+  while (truncated.length > 0 && ctx.measureText(truncated + "…").width > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return truncated + "…";
+}
+
+function redrawActivityCardPreview() {
+  const activity = loadActivities()[activityCardState.activityId];
+  if (!activity) return;
+  const selection = getActivityCardSelection();
+  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection);
+  const previewCanvas = document.getElementById("activityCardPreview");
+  const pctx = previewCanvas.getContext("2d");
+  pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  pctx.drawImage(sourceCanvas, 0, 0);
+}
+
+function initActivityCardModal() {
+  document.getElementById("activityCardModalClose").addEventListener("click", closeActivityCardModal);
+  document.getElementById("activityCardModal").addEventListener("click", (e) => {
+    if (e.target.id === "activityCardModal") closeActivityCardModal();
+  });
+  document.getElementById("activityCardImageInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        activityCardState.image = img;
+        redrawActivityCardPreview();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  document.querySelectorAll("#activityCardChecklist input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", redrawActivityCardPreview);
+  });
+  document.getElementById("activityCardDownloadBtn").addEventListener("click", () => {
+    const activity = loadActivities()[activityCardState.activityId];
+    if (!activity) return;
+    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection());
+    const link = document.createElement("a");
+    link.download = `strava-dash-${activity.sport}-${activity.id}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+
+  // event delegation: "Card" buttons are re-created on every activities-list render,
+  // so a single delegated listener on the (stable) table avoids re-binding each time
+  document.getElementById("activitiesTableBody").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-activity-card-id]");
+    if (btn) openActivityCardModal(btn.dataset.activityCardId);
+  });
+}
+
+/* =========================================================
+   Stage 10: mini downloads on PR cards + year-wise tables
+   ========================================================= */
+function drawMiniStatCard(label, value, meta) {
+  const canvas = document.createElement("canvas");
+  const W = 800, H = 800;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#12171A";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#FF5A36";
+  ctx.beginPath();
+  ctx.arc(60, 60, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#EEF1EC";
+  ctx.font = "700 22px sans-serif";
+  ctx.fillText("STRAVA DASH", 78, 68);
+
+  ctx.fillStyle = "#7C8A8A";
+  ctx.font = "500 22px monospace";
+  ctx.fillText(label.toUpperCase(), 60, 340);
+  ctx.fillStyle = "#FF5A36";
+  ctx.font = "800 90px sans-serif";
+  ctx.fillText(value, 60, 440);
+  ctx.fillStyle = "#B9C0BE";
+  ctx.font = "500 22px monospace";
+  ctx.fillText(truncateCanvasText(ctx, meta, W - 120), 60, 490);
+
+  return canvas;
+}
+
+function downloadCanvas(canvas, filename) {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function drawTableCard(title, columns, rowDefs) {
+  const rowH = 70, headerH = 90, padX = 50, padTop = 90;
+  const colW = Math.max(140, Math.floor((1000 - 260) / columns.length));
+  const W = 260 + colW * columns.length + padX * 2;
+  const H = padTop + headerH + rowH * rowDefs.length + 60;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#12171A";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = "#FF5A36";
+  ctx.beginPath();
+  ctx.arc(padX + 8, 40, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#EEF1EC";
+  ctx.font = "700 18px sans-serif";
+  ctx.fillText("STRAVA DASH", padX + 24, 46);
+  ctx.font = "800 28px sans-serif";
+  ctx.fillText(title, padX, 78);
+
+  let y = padTop;
+  // header row
+  ctx.fillStyle = "#FF5A36";
+  ctx.fillRect(padX, y, 260, headerH);
+  columns.forEach((c, i) => {
+    ctx.fillStyle = c === "All-Time" ? "rgba(0,0,0,0.15)" : "#FF5A36";
+    ctx.fillRect(padX + 260 + i * colW, y, colW, headerH);
+  });
+  ctx.fillStyle = "#12171A";
+  ctx.font = "700 18px monospace";
+  ctx.fillText("", padX + 20, y + headerH / 2 + 6);
+  columns.forEach((c, i) => {
+    ctx.fillStyle = c === "All-Time" ? "#EEF1EC" : "#12171A";
+    ctx.font = "700 18px monospace";
+    ctx.fillText(String(c), padX + 260 + i * colW + 16, y + headerH / 2 + 6);
+  });
+  y += headerH;
+
+  rowDefs.forEach((row, ri) => {
+    ctx.fillStyle = ri % 2 === 0 ? "#1B2226" : "#20272B";
+    ctx.fillRect(padX, y, 260 + colW * columns.length, rowH);
+    ctx.fillStyle = "#7C8A8A";
+    ctx.font = "500 18px monospace";
+    ctx.fillText(row.label, padX + 20, y + rowH / 2 + 6);
+    columns.forEach((c, i) => {
+      ctx.fillStyle = c === "All-Time" ? "#EEF1EC" : "#EEF1EC";
+      ctx.font = c === "All-Time" ? "700 18px monospace" : "500 18px monospace";
+      ctx.fillText(String(row.values[i]), padX + 260 + i * colW + 16, y + rowH / 2 + 6);
+    });
+    y += rowH;
+  });
+
+  return canvas;
+}
+
 async function runFetchSplits() {
   const btn = document.getElementById("bestEffortsBtn");
   const statusText = document.getElementById("bestEffortsStatusText");
@@ -2515,6 +3192,7 @@ document.getElementById("fullResyncLink").addEventListener("click", (e) => {
   }
 });
 document.getElementById("bestEffortsBtn").addEventListener("click", runFetchSplits);
+document.getElementById("segmentsBtn").addEventListener("click", runFetchSegments);
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 document.getElementById("resetMapBtn").addEventListener("click", resetRouteMapView);
 document.getElementById("downloadCardBtn").addEventListener("click", downloadStatsCard);
@@ -2522,9 +3200,58 @@ initDashboardFilters();
 initGranularityFilter();
 initPaceRangeFilter();
 initActivitiesListControls();
+initSegmentsControls();
+initActivityCardModal();
+
+document.getElementById("downloadRideYearTableBtn").addEventListener("click", () => {
+  const d = yearTableCardData.ride;
+  if (!d) return;
+  downloadCanvas(drawTableCard(d.title, d.columns, d.rowDefs), "strava-dash-ride-year-stats.png");
+});
+document.getElementById("downloadRunYearTableBtn").addEventListener("click", () => {
+  const d = yearTableCardData.run;
+  if (!d) return;
+  downloadCanvas(drawTableCard(d.title, d.columns, d.rowDefs), "strava-dash-run-year-stats.png");
+});
+document.getElementById("downloadRunSplitsTableBtn").addEventListener("click", () => {
+  const d = yearTableCardData.splits;
+  if (!d) return;
+  downloadCanvas(drawTableCard(d.title, d.columns, d.rowDefs), "strava-dash-run-splits.png");
+});
 initTheme();
 
 boot();
 </script>
+<div class="modal-overlay hidden" id="activityCardModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Activity card</div>
+      <button class="modal-close" id="activityCardModalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-controls">
+        <label>Background image (optional)</label>
+        <input type="file" id="activityCardImageInput" accept="image/*">
+        <label>Stats to include</label>
+        <div class="checklist" id="activityCardChecklist">
+          <label><input type="checkbox" value="name" checked> Activity name</label>
+          <label><input type="checkbox" value="date" checked> Date</label>
+          <label><input type="checkbox" value="distance" checked> Distance</label>
+          <label><input type="checkbox" value="time" checked> Moving time</label>
+          <label><input type="checkbox" value="pace" checked> Pace / speed</label>
+          <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
+          <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
+          <label><input type="checkbox" value="route" checked> Route line</label>
+        </div>
+        <button class="btn btn-primary" id="activityCardDownloadBtn" style="margin-top:20px;width:100%;">Download card</button>
+      </div>
+      <div>
+        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">Preview</label>
+        <canvas id="activityCardPreview" width="1080" height="1080"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

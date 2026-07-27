@@ -1208,6 +1208,18 @@
           <button data-arrangement="stacked" style="flex:1;">Stacked</button>
         </div>
 
+        <label>Row spacing</label>
+        <div class="control-row">
+          <input type="range" id="rowGapSlider" min="50" max="250" value="100">
+          <span class="mini-range-value" id="rowGapValue">1.0x</span>
+        </div>
+
+        <label>Number spacing</label>
+        <div class="control-row">
+          <input type="range" id="colGapSlider" min="50" max="250" value="100">
+          <span class="mini-range-value" id="colGapValue">1.0x</span>
+        </div>
+
         <label>Text color</label>
         <select id="textColorSelect">
           <option value="auto" selected>Auto (matches photo)</option>
@@ -3071,7 +3083,7 @@ function defaultActivityCardLayout() {
   return {
     photo: { offsetX: 0, offsetY: 0 }, // pan offset in canvas px, clamped to image overflow
     route: { x: 90 / 1080, y: 90 / 1080, w: (1080 - 180) / 1080, h: 300 / 1080, rotation: 0 },
-    stats: { x: 70 / 1080, y: (1080 - 500) / 1080, scale: 1, rotation: 0, arrangement: "grid" },
+    stats: { x: 70 / 1080, y: (1080 - 500) / 1080, scale: 1, rotation: 0, arrangement: "grid", rowGap: 1, colGap: 1 },
   };
 }
 let activityCardLayout = defaultActivityCardLayout();
@@ -3091,6 +3103,10 @@ function resetActivityCardStyle() {
   document.getElementById("statsRotationValue").textContent = "0°";
   document.getElementById("routeRotationSlider").value = 0;
   document.getElementById("routeRotationValue").textContent = "0°";
+  document.getElementById("rowGapSlider").value = 100;
+  document.getElementById("rowGapValue").textContent = "1.0x";
+  document.getElementById("colGapSlider").value = 100;
+  document.getElementById("colGapValue").textContent = "1.0x";
   document.getElementById("watermarkToggle").checked = true;
   document.querySelectorAll("#statsArrangementFilter button").forEach((b) => b.classList.toggle("active", b.dataset.arrangement === "grid"));
 }
@@ -3224,12 +3240,18 @@ function drawActivityCard(activity, image, selection, layout, style) {
   const startX = layout.stats.x * W;
   const startY = layout.stats.y * H;
   const arrangement = layout.stats.arrangement || "grid";
+  const rowGap = layout.stats.rowGap || 1;   // vertical spacing multiplier between stat rows
+  const colGap = layout.stats.colGap || 1;   // horizontal spacing multiplier between stat values
+
+  const rowStepGrid = 130 * sc * rowGap;
+  const rowStepStacked = 90 * sc * rowGap;
+  const rowStepInline = 60 * sc * colGap; // gap between values when laid out in "1 line" mode
 
   // approximate footprint for rotation pivot + auto text-color sampling
-  const blockW = arrangement === "row" ? Math.min(W - startX - 30, 130 * sc * Math.max(bigStats.length, 1))
+  const blockW = arrangement === "row" ? Math.min(W - startX - 30, (130 * sc + rowStepInline) * Math.max(bigStats.length, 1))
     : arrangement === "stacked" ? 420 * sc
     : (W - startX - 70);
-  const blockH = 90 * sc + (arrangement === "stacked" ? bigStats.length * 90 * sc : Math.ceil(bigStats.length / (arrangement === "row" ? bigStats.length || 1 : 2)) * 130 * sc) + lines.length * 50 * sc;
+  const blockH = 90 * sc + (arrangement === "stacked" ? bigStats.length * rowStepStacked : Math.ceil(bigStats.length / (arrangement === "row" ? bigStats.length || 1 : 2)) * rowStepGrid) + lines.length * 50 * sc;
   const pivotX = startX + blockW / 2;
   const pivotY = startY + blockH / 2 - 40;
 
@@ -3274,16 +3296,16 @@ function drawActivityCard(activity, image, selection, layout, style) {
       ctx.fillStyle = "#FF5A36";
       ctx.font = `800 ${Math.round(34 * sc)}px sans-serif`;
       ctx.fillText(s.value, x, y + 40 * sc);
-      x += (ctx.measureText(s.value).width + 60 * sc);
+      x += (ctx.measureText(s.value).width + rowStepInline);
     });
   } else {
     const cols = arrangement === "stacked" ? 1 : Math.min(bigStats.length, 2);
-    const colWidth = (W - startX - 70) / Math.max(cols, 1);
+    const colWidth = ((W - startX - 70) / Math.max(cols, 1)) * (arrangement === "stacked" ? 1 : Math.min(colGap, 1.3)); // colGap also nudges grid column width so labels don't overlap when tightened
     bigStats.forEach((s, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = startX + col * colWidth;
-      const rowY = y + row * (arrangement === "stacked" ? 90 : 130) * sc;
+      const rowY = y + row * (arrangement === "stacked" ? rowStepStacked : rowStepGrid);
       ctx.fillStyle = labelColor;
       ctx.font = `500 ${Math.round(18 * sc)}px monospace`;
       ctx.fillText(s.label, x, rowY);
@@ -3570,6 +3592,16 @@ function initActivityCardModal() {
   document.getElementById("scrimSlider").addEventListener("input", (e) => {
     activityCardScrim = e.target.value / 100;
     document.getElementById("scrimValue").textContent = `${e.target.value}%`;
+    redrawActivityCardPreview();
+  });
+  document.getElementById("rowGapSlider").addEventListener("input", (e) => {
+    activityCardLayout.stats.rowGap = e.target.value / 100;
+    document.getElementById("rowGapValue").textContent = `${(e.target.value / 100).toFixed(1)}x`;
+    redrawActivityCardPreview();
+  });
+  document.getElementById("colGapSlider").addEventListener("input", (e) => {
+    activityCardLayout.stats.colGap = e.target.value / 100;
+    document.getElementById("colGapValue").textContent = `${(e.target.value / 100).toFixed(1)}x`;
     redrawActivityCardPreview();
   });
   document.getElementById("statsRotationSlider").addEventListener("input", (e) => {

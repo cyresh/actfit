@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Strava Dash</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#12171A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Strava Dash">
+<link rel="icon" type="image/x-icon" href="./icons/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="./icons/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2611,7 +2621,7 @@ function renderRunSplitsTable() {
 
   const activities = loadActivities();
   const years = new Set();
-  const records = []; // { year, name, elapsed_time }
+  const records = []; // { year, name, elapsed_time, activityId }
 
   activityIds.forEach((id) => {
     const activity = activities[id];
@@ -2619,7 +2629,7 @@ function renderRunSplitsTable() {
     const year = new Date(activity.start_date_local).getFullYear();
     years.add(year);
     (bestEfforts[id] || []).forEach((be) => {
-      records.push({ year, name: be.name, elapsed_time: be.elapsed_time });
+      records.push({ year, name: be.name, elapsed_time: be.elapsed_time, activityId: id });
     });
   });
 
@@ -2628,18 +2638,25 @@ function renderRunSplitsTable() {
 
   let thead = `<tr><th>Split</th>${columns.map((c) => `<th class="${c === "All-Time" ? "alltime" : ""}">${c}</th>`).join("")}</tr>`;
   let body = "";
-  const rowDefs = [];
+  const rowDefs = []; // plain text values, used for the downloadable card (no HTML links there)
 
   SPLIT_NAMES.forEach((splitName) => {
-    const values = columns.map((c) => {
+    const cellValues = columns.map((c) => {
       const matching = c === "All-Time"
         ? records.filter((r) => r.name === splitName)
         : records.filter((r) => r.name === splitName && r.year === c);
-      const best = matching.length ? Math.min(...matching.map((r) => r.elapsed_time)) : null;
-      return formatSplitTime(best);
+      if (matching.length === 0) return { text: "–", activityId: null };
+      const bestRecord = matching.reduce((best, r) => (r.elapsed_time < best.elapsed_time ? r : best));
+      return { text: formatSplitTime(bestRecord.elapsed_time), activityId: bestRecord.activityId };
     });
-    rowDefs.push({ label: splitName, values });
-    body += `<tr><td>${splitName}</td>${columns.map((c, i) => `<td class="${c === "All-Time" ? "alltime" : ""}">${values[i]}</td>`).join("")}</tr>`;
+    rowDefs.push({ label: splitName, values: cellValues.map((v) => v.text) });
+    body += `<tr><td>${splitName}</td>${columns.map((c, i) => {
+      const cell = cellValues[i];
+      const content = cell.activityId
+        ? `<a href="https://www.strava.com/activities/${cell.activityId}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-color:var(--line);">${cell.text}</a>`
+        : cell.text;
+      return `<td class="${c === "All-Time" ? "alltime" : ""}">${content}</td>`;
+    }).join("")}</tr>`;
   });
 
   yearTableCardData.splits = { title: "Run Fastest Splits", columns, rowDefs };
@@ -3807,6 +3824,14 @@ document.getElementById("downloadRunSplitsTableBtn").addEventListener("click", (
   downloadCanvas(drawTableCard(d.title, d.columns, d.rowDefs), "strava-dash-run-splits.png");
 });
 initTheme();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {
+      // Non-fatal — app still works without offline support, just won't be installable
+    });
+  });
+}
 
 boot();
 </script>

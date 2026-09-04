@@ -693,6 +693,54 @@
   .mini-download-btn:hover{ border-color:var(--route); color:var(--route); }
   .pr-card{ position:relative; }
   .pr-card .mini-download-btn{ position:absolute; top:14px; right:14px; }
+
+  /* ---------- milestone shareable stats cards ---------- */
+  .milestone-cards-wrap{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:18px 20px 20px;
+    margin-bottom:20px;
+  }
+  .milestone-cards-desc{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    margin:0 0 14px;
+    line-height:1.5;
+  }
+  .milestone-btn-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .milestone-btn{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.03em;
+    padding:12px 20px;
+    border-radius:2px;
+    border:1px solid var(--line);
+    background:var(--ink);
+    color:var(--chalk);
+    cursor:pointer;
+    display:inline-flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:2px;
+    transition:transform .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .milestone-btn:active{ transform:scale(0.97); }
+  .milestone-btn:hover{ border-color:var(--route); color:var(--route); }
+  .milestone-btn .milestone-btn-sub{
+    color:var(--muted);
+    font-weight:500;
+    font-size:10px;
+    letter-spacing:0.04em;
+  }
+  .milestone-btn:hover .milestone-btn-sub{ color:var(--route); }
+
   .section-title-row{
     display:flex;
     align-items:center;
@@ -1120,6 +1168,17 @@
     </div>
     <div class="year-table-wrap" id="runSplitsTableWrap">
       <p class="empty-dash">No split data yet — click "Fetch splits" in your profile card above (uses Strava's own best-effort calculation, one-time per run activity).</p>
+    </div>
+
+    <div class="section-title" style="margin-bottom:10px;">Milestone stats cards</div>
+    <div class="milestone-cards-wrap">
+      <p class="milestone-cards-desc">Pick a milestone to generate a shareable, Strava-style stats card (PNG) with your count for that distance plus your running volume, this year and all-time.</p>
+      <div class="milestone-btn-row" id="milestoneCardBtnRow">
+        <button class="milestone-btn" data-milestone="k10">10K<span class="milestone-btn-sub">10K RUNS</span></button>
+        <button class="milestone-btn" data-milestone="hm">HM<span class="milestone-btn-sub">HALF MARATHON</span></button>
+        <button class="milestone-btn" data-milestone="k32">30K<span class="milestone-btn-sub">30K RUNS</span></button>
+        <button class="milestone-btn" data-milestone="fm">FM<span class="milestone-btn-sub">FULL MARATHON</span></button>
+      </div>
     </div>
 
     <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
@@ -3157,6 +3216,200 @@ function downloadStatsCard() {
   link.href = canvas.toDataURL("image/png");
   link.click();
 }
+
+/* =========================================================
+   Milestone stats cards (10K / HM / 30K / FM) — shareable
+   Strava-style PNG: black background, bright orange type,
+   flowing arc lines, this-year vs all-time split for the
+   milestone count, run distance and elevation gain.
+   ========================================================= */
+const MILESTONE_CARD_DEFS = {
+  k10: { label: "10K", full: "10K Runs" },
+  hm:  { label: "HM",  full: "Half Marathon Runs" },
+  k32: { label: "30K", full: "30K Runs" },
+  fm:  { label: "FM",  full: "Full Marathon Runs" },
+};
+
+function computeMilestoneCardStats(bucketKey) {
+  const activities = Object.values(loadActivities());
+  const runs = activities.filter((a) => a.sport === "run");
+  const currentYear = new Date().getFullYear();
+  const thisYearRuns = runs.filter((a) => new Date(a.start_date_local).getFullYear() === currentYear);
+
+  const countInBucket = (list) => list.filter((a) => bucketRun(a.distance) === bucketKey).length;
+  const sumKm = (list) => list.reduce((s, a) => s + (a.distance || 0), 0) / 1000;
+  const sumElev = (list) => list.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
+
+  return {
+    year: currentYear,
+    countThisYear: countInBucket(thisYearRuns),
+    countAllTime: countInBucket(runs),
+    kmThisYear: sumKm(thisYearRuns),
+    kmAllTime: sumKm(runs),
+    elevThisYear: sumElev(thisYearRuns),
+    elevAllTime: sumElev(runs),
+  };
+}
+
+// Flowing, semi-transparent contour-style arcs in the background,
+// evocative of a route/elevation line without copying any brand asset.
+function drawMilestoneCardArcs(ctx, W, H) {
+  const arcs = [
+    { cx: W * 0.15, cy: H * 0.18, r: W * 0.55, start: 0.15, end: 1.15, color: "rgba(252,76,2,0.16)", width: 3 },
+    { cx: W * 1.05, cy: H * 0.42, r: W * 0.62, start: 2.4, end: 3.5, color: "rgba(255,255,255,0.06)", width: 2 },
+    { cx: W * -0.05, cy: H * 0.88, r: W * 0.7, start: -0.6, end: 0.35, color: "rgba(252,76,2,0.10)", width: 2 },
+    { cx: W * 0.95, cy: H * 1.02, r: W * 0.5, start: 3.4, end: 4.3, color: "rgba(255,255,255,0.05)", width: 2 },
+  ];
+  arcs.forEach((a) => {
+    ctx.beginPath();
+    ctx.arc(a.cx, a.cy, a.r, a.start * Math.PI, a.end * Math.PI);
+    ctx.strokeStyle = a.color;
+    ctx.lineWidth = a.width;
+    ctx.stroke();
+  });
+}
+
+// Shrinks the font size for a big stat number until it fits maxWidth.
+function fitStatNumberFont(ctx, text, maxWidth, maxSize, minSize) {
+  let size = maxSize;
+  while (size > minSize) {
+    ctx.font = `800 ${size}px 'Helvetica Neue', Arial, sans-serif`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= 4;
+  }
+  return size;
+}
+
+function drawMilestoneStatsCard(bucketKey) {
+  const def = MILESTONE_CARD_DEFS[bucketKey];
+  const stats = computeMilestoneCardStats(bucketKey);
+
+  const W = 1080, H = 1400;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // pure black background — Strava-style
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, W, H);
+
+  drawMilestoneCardArcs(ctx, W, H);
+
+  // brand mark (own wordmark, not a reproduction of any trademarked logo)
+  ctx.fillStyle = "#FC4C02";
+  ctx.beginPath();
+  ctx.arc(70, 84, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "800 26px 'Helvetica Neue', Arial, sans-serif";
+  ctx.fillText("ACTFIT", 90, 94);
+  ctx.fillStyle = "#7A7A7A";
+  ctx.font = "600 16px 'JetBrains Mono', monospace";
+  ctx.fillText("POWERED BY STRAVA", 90, 118);
+
+  // title = the milestone card
+  ctx.fillStyle = "#FC4C02";
+  ctx.font = "800 130px 'Helvetica Neue', Arial, sans-serif";
+  ctx.fillText(def.label, 68, 265);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "700 36px 'Helvetica Neue', Arial, sans-serif";
+  ctx.fillText("STATS CARD", 70, 312);
+
+  // date
+  ctx.fillStyle = "#9A9A9A";
+  ctx.font = "500 22px 'JetBrains Mono', monospace";
+  const dateStr = new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  ctx.fillText(dateStr, 70, 350);
+
+  // top divider
+  ctx.strokeStyle = "rgba(255,255,255,0.14)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(70, 388);
+  ctx.lineTo(W - 70, 388);
+  ctx.stroke();
+
+  const colLeftX = 70;
+  const colRightX = 560;
+  const colWidth = 450;
+
+  const blocks = [
+    {
+      title: `${def.full.toUpperCase()} COUNT`,
+      left: { label: "THIS YEAR", value: formatInt(stats.countThisYear) },
+      right: { label: "ALL TIME", value: formatInt(stats.countAllTime) },
+    },
+    {
+      title: "RUN DISTANCE (KM)",
+      left: { label: "THIS YEAR", value: formatInt(stats.kmThisYear) },
+      right: { label: "ALL TIME", value: formatInt(stats.kmAllTime) },
+    },
+    {
+      title: "ELEVATION GAIN (M)",
+      left: { label: "THIS YEAR", value: formatInt(stats.elevThisYear) },
+      right: { label: "ALL TIME", value: formatInt(stats.elevAllTime) },
+    },
+  ];
+
+  let y = 470;
+  const blockH = 320;
+  blocks.forEach((b, i) => {
+    ctx.fillStyle = "#9A9A9A";
+    ctx.font = "700 22px 'JetBrains Mono', monospace";
+    ctx.fillText(b.title, colLeftX, y);
+
+    const leftSize = fitStatNumberFont(ctx, b.left.value, colWidth, 118, 60);
+    ctx.fillStyle = "#FC4C02";
+    ctx.font = `800 ${leftSize}px 'Helvetica Neue', Arial, sans-serif`;
+    ctx.fillText(b.left.value, colLeftX, y + 150);
+    ctx.fillStyle = "#8C8C8C";
+    ctx.font = "600 21px 'JetBrains Mono', monospace";
+    ctx.fillText(b.left.label, colLeftX, y + 186);
+
+    const rightSize = fitStatNumberFont(ctx, b.right.value, colWidth, 118, 60);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = `800 ${rightSize}px 'Helvetica Neue', Arial, sans-serif`;
+    ctx.fillText(b.right.value, colRightX, y + 150);
+    ctx.fillStyle = "#8C8C8C";
+    ctx.font = "600 21px 'JetBrains Mono', monospace";
+    ctx.fillText(b.right.label, colRightX, y + 186);
+
+    if (i < blocks.length - 1) {
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      ctx.beginPath();
+      ctx.moveTo(colLeftX, y + 232);
+      ctx.lineTo(W - 70, y + 232);
+      ctx.stroke();
+    }
+    y += blockH;
+  });
+
+  // footer curved line + label
+  ctx.strokeStyle = "rgba(252,76,2,0.35)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(70, H - 90);
+  ctx.quadraticCurveTo(W / 2, H - 130, W - 70, H - 90);
+  ctx.stroke();
+
+  ctx.fillStyle = "#6E6E6E";
+  ctx.font = "500 18px 'JetBrains Mono', monospace";
+  ctx.fillText(`actfit · ${stats.year}`, 70, H - 40);
+
+  return canvas;
+}
+
+function downloadMilestoneStatsCard(bucketKey) {
+  const canvas = drawMilestoneStatsCard(bucketKey);
+  downloadCanvas(canvas, `actfit-${bucketKey}-stats-card.png`);
+}
+
+document.getElementById("milestoneCardBtnRow").addEventListener("click", (e) => {
+  const btn = e.target.closest(".milestone-btn");
+  if (!btn) return;
+  downloadMilestoneStatsCard(btn.dataset.milestone);
+});
 
 /* =========================================================
    Stage 10: per-activity downloadable card (image picker +

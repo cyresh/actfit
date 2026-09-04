@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./vendor/leaflet.css">
 <script src="./chart.umd.js"></script>
 <script src="./vendor/leaflet.js"></script>
@@ -3316,6 +3316,26 @@ function drawMilestoneShoeIcon(ctx, x, y, scale, color) {
   ctx.restore();
 }
 
+// Small zigzag "route line" mark used next to the wordmark — echoes the
+// app's own elevation-trace motif (see the hero .trace SVG) rather than
+// tracing any brand's actual logo mark.
+function drawBrandGlyph(ctx, x, y, s, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 6;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 34);
+  ctx.lineTo(11, 8);
+  ctx.lineTo(19, 24);
+  ctx.lineTo(27, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
 // Loads the athlete's connected Strava avatar (already fetched into the
 // page's <img id="athleteAvatar">) so the card can carry the real
 // profile photo. Falls back to null (handled by drawAvatarBadge) if it's
@@ -3455,7 +3475,7 @@ async function drawMilestoneStatsCard(bucketKey) {
 
   // Canvas now matches the glass panel exactly — everything outside the
   // rounded frame is cropped away, so there's nothing to trim afterward.
-  const W = 960, H = 1030, R = 34;
+  const W = 720, H = 800, R = 34;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -3473,32 +3493,41 @@ async function drawMilestoneStatsCard(bucketKey) {
   glow.addColorStop(0, "rgba(252,76,2,0.45)");
   glow.addColorStop(1, "rgba(252,76,2,0)");
   ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H * 0.6);
+  ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "rgba(15,15,15,0.35)";
   ctx.fillRect(0, 0, W, H);
 
-  const padX = 54;
-  const rightEdge = W - 54;
+  const padX = 44;
+  const rightEdge = W - 44;
   const dateStr = new Date().toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
 
-  // brand row: STRAVA wordmark + date/milestone subtitle (left),
-  // connected athlete's profile photo in a thick orange ring (right)
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "800 38px 'Big Shoulders Display', sans-serif";
-  ctx.save();
-  // manual shear for a slanted wordmark — Big Shoulders Display has no
-  // italic face, so `italic` in the font string would silently no-op
-  ctx.transform(1, 0, -0.22, 1, 0, 0);
-  ctx.fillText("STRAVA", padX + 62 * 0.22, 62);
-  ctx.restore();
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
-  ctx.font = "500 15px 'JetBrains Mono', monospace";
-  ctx.fillText(`${def.label} STATS · ${dateStr.toUpperCase()}`, padX, 88);
+  // avatar sits top-right, sized to the brand block's height — the old
+  // shoe-icon row is gone, so there's no separate row for it anymore
+  const avatarR = 32;
+  const avatarCx = rightEdge - avatarR;
+  const avatarCy = 38;
 
-  drawAvatarBadge(ctx, rightEdge - 34, 50, 34, avatarImg);
+  // brand row: route-glyph + wordmark (left), date (between wordmark and avatar)
+  drawBrandGlyph(ctx, padX, 12, 1, "#FC4C02");
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "800 32px 'Big Shoulders Display', sans-serif";
+  ctx.fillText("STRAVA", padX + 42, 40);
+
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.font = "500 14px 'JetBrains Mono', monospace";
+  ctx.textAlign = "right";
+  ctx.fillText(dateStr.toUpperCase(), avatarCx - avatarR - 14, 40);
+  ctx.textAlign = "left";
+
+  drawAvatarBadge(ctx, avatarCx, avatarCy, avatarR, avatarImg);
+
+  // bold white milestone subtitle under the brand row
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "800 24px 'Big Shoulders Display', sans-serif";
+  ctx.fillText(`${def.label} STATS`, padX, 78);
 
   // divider under brand row
-  let dividerY = 122;
+  let dividerY = 100;
   ctx.strokeStyle = "rgba(255,255,255,0.14)";
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -3506,31 +3535,13 @@ async function drawMilestoneStatsCard(bucketKey) {
   ctx.lineTo(rightEdge, dividerY);
   ctx.stroke();
 
-  // icon row: shoe (left) + milestone badge (right)
-  const iconLabelY = dividerY + 38;
-  ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.font = "700 22px 'JetBrains Mono', monospace";
-  ctx.fillText(`${def.full.toUpperCase()}`, padX, iconLabelY);
-
-  drawMilestoneShoeIcon(ctx, padX, iconLabelY + 24, 0.56, "#FC4C02");
-  drawMilestoneBadge(ctx, rightEdge - 104, iconLabelY + 8, 104, def.label);
-
-  // divider under icon row
-  dividerY = 306;
-  ctx.strokeStyle = "rgba(255,255,255,0.14)";
-  ctx.beginPath();
-  ctx.moveTo(padX, dividerY);
-  ctx.lineTo(rightEdge, dividerY);
-  ctx.stroke();
-
-  // single column header for both stat columns — replaces the old
-  // per-row "∞ ALL-TIME" tag
+  // single column header for both stat columns — bold, orange, and 20%
+  // larger (16px -> 19px) — replaces the old per-row "∞ ALL-TIME" tag
   const headerY = dividerY + 34;
-  ctx.font = "700 16px 'JetBrains Mono', monospace";
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "800 19px 'JetBrains Mono', monospace";
+  ctx.fillStyle = "#FC4C02";
   ctx.fillText(`THIS YEAR (${stats.year})`, padX, headerY);
   ctx.textAlign = "right";
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.fillText("ALL TIME", rightEdge, headerY);
   ctx.textAlign = "left";
 
@@ -3555,7 +3566,7 @@ async function drawMilestoneStatsCard(bucketKey) {
   // gap between a row's label and its number, widened 20% (60px -> 72px)
   const labelToNumberGap = 72;
   let y = headerY + 40;
-  const rightColW = 250;
+  const rightColW = 190;
 
   rows.forEach((r, i) => {
     ctx.fillStyle = "rgba(255,255,255,0.8)";

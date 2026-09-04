@@ -3219,9 +3219,11 @@ function downloadStatsCard() {
 
 /* =========================================================
    Milestone stats cards (10K / HM / 30K / FM) — shareable
-   Strava-style PNG: black background, bright orange type,
-   flowing arc lines, this-year vs all-time split for the
-   milestone count, run distance and elevation gain.
+   PNG styled after Strava's own monthly-recap share cards:
+   black-to-orange gradient, frosted glass panel, a running-
+   shoe icon + milestone badge up top, this-year vs all-time
+   stat rows (count / distance / time / elevation), and a
+   scrolling ticker banner across the bottom of the card.
    ========================================================= */
 const MILESTONE_CARD_DEFS = {
   k10: { label: "10K", full: "10K Runs" },
@@ -3239,6 +3241,7 @@ function computeMilestoneCardStats(bucketKey) {
   const countInBucket = (list) => list.filter((a) => bucketRun(a.distance) === bucketKey).length;
   const sumKm = (list) => list.reduce((s, a) => s + (a.distance || 0), 0) / 1000;
   const sumElev = (list) => list.reduce((s, a) => s + (a.total_elevation_gain || 0), 0);
+  const sumHours = (list) => list.reduce((s, a) => s + (a.moving_time || 0), 0) / 3600;
 
   return {
     year: currentYear,
@@ -3246,36 +3249,145 @@ function computeMilestoneCardStats(bucketKey) {
     countAllTime: countInBucket(runs),
     kmThisYear: sumKm(thisYearRuns),
     kmAllTime: sumKm(runs),
+    hoursThisYear: sumHours(thisYearRuns),
+    hoursAllTime: sumHours(runs),
     elevThisYear: sumElev(thisYearRuns),
     elevAllTime: sumElev(runs),
   };
 }
 
-// Flowing, semi-transparent contour-style arcs in the background,
-// evocative of a route/elevation line without copying any brand asset.
-function drawMilestoneCardArcs(ctx, W, H) {
-  const arcs = [
-    { cx: W * 0.15, cy: H * 0.18, r: W * 0.55, start: 0.15, end: 1.15, color: "rgba(252,76,2,0.16)", width: 3 },
-    { cx: W * 1.05, cy: H * 0.42, r: W * 0.62, start: 2.4, end: 3.5, color: "rgba(255,255,255,0.06)", width: 2 },
-    { cx: W * -0.05, cy: H * 0.88, r: W * 0.7, start: -0.6, end: 0.35, color: "rgba(252,76,2,0.10)", width: 2 },
-    { cx: W * 0.95, cy: H * 1.02, r: W * 0.5, start: 3.4, end: 4.3, color: "rgba(255,255,255,0.05)", width: 2 },
-  ];
-  arcs.forEach((a) => {
-    ctx.beginPath();
-    ctx.arc(a.cx, a.cy, a.r, a.start * Math.PI, a.end * Math.PI);
-    ctx.strokeStyle = a.color;
-    ctx.lineWidth = a.width;
-    ctx.stroke();
-  });
+// Manual rounded-rect path (kept independent of ctx.roundRect for
+// broader browser support).
+function milestoneRoundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
 }
 
-// Shrinks the font size for a big stat number until it fits maxWidth.
+// Simple stylised running-shoe silhouette (generic iconography,
+// not a reproduction of any brand's asset).
+function drawMilestoneShoeIcon(ctx, x, y, scale, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  // upper + toe + heel silhouette, angular laces notch reads as a shoe at small sizes
+  ctx.beginPath();
+  ctx.moveTo(4, 52);
+  ctx.lineTo(2, 40);
+  ctx.lineTo(16, 24);
+  ctx.lineTo(42, 13);
+  ctx.lineTo(52, 23);
+  ctx.lineTo(62, 5);
+  ctx.lineTo(72, 19);
+  ctx.lineTo(98, 11);
+  ctx.quadraticCurveTo(138, 8, 156, 28);
+  ctx.quadraticCurveTo(168, 40, 160, 52);
+  ctx.lineTo(4, 52);
+  ctx.closePath();
+  ctx.stroke();
+
+  // sole
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(2, 58);
+  ctx.lineTo(162, 58);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// Small shield-shaped "milestone badge" carrying the distance label —
+// stands in for the decorative patch/achievement icon, but tied to
+// the actual milestone being shared rather than being pure decoration.
+function drawMilestoneBadge(ctx, x, y, w, label) {
+  const h = w * 1.12;
+  ctx.save();
+  ctx.translate(x, y);
+
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 0);
+  ctx.lineTo(w, h * 0.26);
+  ctx.lineTo(w, h * 0.68);
+  ctx.quadraticCurveTo(w, h * 0.96, w / 2, h);
+  ctx.quadraticCurveTo(0, h * 0.96, 0, h * 0.68);
+  ctx.lineTo(0, h * 0.26);
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, "#1E4E5F");
+  grad.addColorStop(0.55, "#2C6B4F");
+  grad.addColorStop(1, "#3A3E7C");
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 2;
+  for (let i = -1; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-10, h * 0.18 + i * 15);
+    ctx.lineTo(w * 0.42, h * 0.06 + i * 15);
+    ctx.lineTo(w * 0.68, h * 0.24 + i * 15);
+    ctx.lineTo(w + 10, h * 0.02 + i * 15);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#FC4C02";
+  ctx.stroke();
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `800 ${Math.round(w * 0.24)}px 'Helvetica Neue', Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText(label, w / 2, h * 0.6);
+  ctx.textAlign = "left";
+  ctx.restore();
+}
+
+// Scrolling ticker banner across the bottom of the card, wider than
+// the panel so it visibly bleeds past the rounded corners.
+function drawMilestoneTicker(ctx, canvasW, panelX, panelW, y, height, text) {
+  const barX = panelX - 34;
+  const barW = panelW + 68;
+  ctx.save();
+  ctx.fillStyle = "#F4C9A0";
+  ctx.fillRect(barX, y, barW, height);
+
+  ctx.fillStyle = "#141414";
+  ctx.font = "800 27px 'Helvetica Neue', Arial, sans-serif";
+  ctx.textBaseline = "middle";
+  const unit = text + "     ";
+  const unitWidth = ctx.measureText(unit).width;
+  let tx = barX - (unitWidth - (barW % unitWidth));
+  while (tx < barX + barW) {
+    ctx.fillText(unit, tx, y + height / 2 + 1);
+    tx += unitWidth;
+  }
+  ctx.restore();
+}
+
+// Shrinks a bold stat-number font until it fits maxWidth.
 function fitStatNumberFont(ctx, text, maxWidth, maxSize, minSize) {
   let size = maxSize;
   while (size > minSize) {
     ctx.font = `800 ${size}px 'Helvetica Neue', Arial, sans-serif`;
     if (ctx.measureText(text).width <= maxWidth) break;
-    size -= 4;
+    size -= 3;
   }
   return size;
 }
@@ -3284,125 +3396,130 @@ function drawMilestoneStatsCard(bucketKey) {
   const def = MILESTONE_CARD_DEFS[bucketKey];
   const stats = computeMilestoneCardStats(bucketKey);
 
-  const W = 1080, H = 1400;
+  const W = 1080, H = 1280;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  // pure black background — Strava-style
-  ctx.fillStyle = "#000000";
+  // black-to-orange glow background, Strava-recap style
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#000000");
+  bg.addColorStop(0.55, "#000000");
+  bg.addColorStop(0.78, "#4A1B06");
+  bg.addColorStop(1, "#FC4C02");
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, H, 40, W / 2, H, W * 0.9);
+  glow.addColorStop(0, "rgba(252,76,2,0.55)");
+  glow.addColorStop(1, "rgba(252,76,2,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, H * 0.5, W, H * 0.5);
 
-  drawMilestoneCardArcs(ctx, W, H);
-
-  // brand mark (own wordmark, not a reproduction of any trademarked logo)
-  ctx.fillStyle = "#FC4C02";
-  ctx.beginPath();
-  ctx.arc(70, 84, 8, 0, Math.PI * 2);
-  ctx.fill();
+  // plain "STRAVA" wordmark (text only — not a reproduction of the
+  // trademarked logo mark) + date, above the card panel
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = "800 26px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillText("ACTFIT", 90, 94);
-  ctx.fillStyle = "#7A7A7A";
-  ctx.font = "600 16px 'JetBrains Mono', monospace";
-  ctx.fillText("POWERED BY STRAVA", 90, 118);
-
-  // title = the milestone card
-  ctx.fillStyle = "#FC4C02";
-  ctx.font = "800 130px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillText(def.label, 68, 265);
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "700 36px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillText("STATS CARD", 70, 312);
-
-  // date
-  ctx.fillStyle = "#9A9A9A";
+  ctx.font = "italic 800 40px 'Helvetica Neue', Arial, sans-serif";
+  ctx.fillText("STRAVA", 60, 74);
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
   ctx.font = "500 22px 'JetBrains Mono', monospace";
-  const dateStr = new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
-  ctx.fillText(dateStr, 70, 350);
+  const dateStr = new Date().toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" });
+  ctx.textAlign = "right";
+  ctx.fillText(`${def.label} STATS · ${dateStr.toUpperCase()}`, W - 60, 74);
+  ctx.textAlign = "left";
 
-  // top divider
+  // frosted glass panel
+  const panelX = 60, panelY = 120, panelW = W - 120, panelH = 1030, panelR = 34;
+  milestoneRoundRectPath(ctx, panelX, panelY, panelW, panelH, panelR);
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = "rgba(15,15,15,0.62)";
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.restore();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.stroke();
+
+  const padX = panelX + 54;
+  const rightEdge = panelX + panelW - 54;
+
+  // icon row: shoe (left) + milestone badge (right)
+  const iconLabelY = panelY + 66;
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.font = "700 24px 'JetBrains Mono', monospace";
+  ctx.fillText(`${def.full.toUpperCase()}`, padX, iconLabelY);
+
+  drawMilestoneShoeIcon(ctx, padX, iconLabelY + 26, 0.62, "#FC4C02");
+  drawMilestoneBadge(ctx, rightEdge - 116, iconLabelY + 10, 116, def.label);
+
+  // divider under icon row
+  const dividerY = panelY + 230;
   ctx.strokeStyle = "rgba(255,255,255,0.14)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(70, 388);
-  ctx.lineTo(W - 70, 388);
+  ctx.moveTo(padX, dividerY);
+  ctx.lineTo(rightEdge, dividerY);
   ctx.stroke();
 
-  const colLeftX = 70;
-  const colRightX = 560;
-  const colWidth = 450;
-
-  const blocks = [
-    {
-      title: `${def.full.toUpperCase()} COUNT`,
-      left: { label: "THIS YEAR", value: formatInt(stats.countThisYear) },
-      right: { label: "ALL TIME", value: formatInt(stats.countAllTime) },
-    },
-    {
-      title: "RUN DISTANCE (KM)",
-      left: { label: "THIS YEAR", value: formatInt(stats.kmThisYear) },
-      right: { label: "ALL TIME", value: formatInt(stats.kmAllTime) },
-    },
-    {
-      title: "ELEVATION GAIN (M)",
-      left: { label: "THIS YEAR", value: formatInt(stats.elevThisYear) },
-      right: { label: "ALL TIME", value: formatInt(stats.elevAllTime) },
-    },
+  // stat rows: count / distance / time / elevation
+  const rows = [
+    { label: `${def.label} count`, unit: "", thisVal: formatInt(stats.countThisYear), allVal: formatInt(stats.countAllTime) },
+    { label: "Total distance", unit: " km", thisVal: formatInt(stats.kmThisYear), allVal: formatInt(stats.kmAllTime) },
+    { label: "Total time", unit: " hrs", thisVal: formatInt(stats.hoursThisYear), allVal: formatInt(stats.hoursAllTime) },
+    { label: "Total elevation", unit: " m", thisVal: formatInt(stats.elevThisYear), allVal: formatInt(stats.elevAllTime) },
   ];
 
-  let y = 470;
-  const blockH = 320;
-  blocks.forEach((b, i) => {
-    ctx.fillStyle = "#9A9A9A";
-    ctx.font = "700 22px 'JetBrains Mono', monospace";
-    ctx.fillText(b.title, colLeftX, y);
+  const rowH = 172;
+  let y = dividerY + 56;
+  const rightColW = 260;
 
-    const leftSize = fitStatNumberFont(ctx, b.left.value, colWidth, 118, 60);
-    ctx.fillStyle = "#FC4C02";
-    ctx.font = `800 ${leftSize}px 'Helvetica Neue', Arial, sans-serif`;
-    ctx.fillText(b.left.value, colLeftX, y + 150);
-    ctx.fillStyle = "#8C8C8C";
-    ctx.font = "600 21px 'JetBrains Mono', monospace";
-    ctx.fillText(b.left.label, colLeftX, y + 186);
+  rows.forEach((r, i) => {
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.font = "600 25px 'Helvetica Neue', Arial, sans-serif";
+    ctx.fillText(r.label, padX, y);
 
-    const rightSize = fitStatNumberFont(ctx, b.right.value, colWidth, 118, 60);
+    const thisText = r.thisVal + r.unit;
+    const fitSize = fitStatNumberFont(ctx, thisText, rightEdge - rightColW - padX - 20, 62, 40);
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = `800 ${rightSize}px 'Helvetica Neue', Arial, sans-serif`;
-    ctx.fillText(b.right.value, colRightX, y + 150);
-    ctx.fillStyle = "#8C8C8C";
-    ctx.font = "600 21px 'JetBrains Mono', monospace";
-    ctx.fillText(b.right.label, colRightX, y + 186);
+    ctx.font = `800 ${fitSize}px 'Helvetica Neue', Arial, sans-serif`;
+    ctx.fillText(thisText, padX, y + 60);
 
-    if (i < blocks.length - 1) {
-      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = "700 19px 'JetBrains Mono', monospace";
+    ctx.fillText("∞ ALL-TIME", rightEdge, y - 6);
+    const allText = r.allVal + r.unit;
+    const allSize = fitStatNumberFont(ctx, allText, rightColW, 36, 24);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = `800 ${allSize}px 'Helvetica Neue', Arial, sans-serif`;
+    ctx.fillText(allText, rightEdge, y + 34);
+    ctx.textAlign = "left";
+
+    if (i < rows.length - 1) {
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
       ctx.beginPath();
-      ctx.moveTo(colLeftX, y + 232);
-      ctx.lineTo(W - 70, y + 232);
+      ctx.moveTo(padX, y + 62);
+      ctx.lineTo(rightEdge, y + 62);
       ctx.stroke();
     }
-    y += blockH;
+    y += rowH;
   });
 
-  // footer curved line + label
-  ctx.strokeStyle = "rgba(252,76,2,0.35)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(70, H - 90);
-  ctx.quadraticCurveTo(W / 2, H - 130, W - 70, H - 90);
-  ctx.stroke();
-
-  ctx.fillStyle = "#6E6E6E";
-  ctx.font = "500 18px 'JetBrains Mono', monospace";
-  ctx.fillText(`actfit · ${stats.year}`, 70, H - 40);
+  // scrolling ticker banner, clipped to the panel's rounded bottom
+  const tickerH = 62;
+  const tickerY = panelY + panelH - tickerH;
+  ctx.save();
+  milestoneRoundRectPath(ctx, panelX, panelY, panelW, panelH, panelR);
+  ctx.clip();
+  drawMilestoneTicker(ctx, W, panelX, panelW, tickerY, tickerH, `${def.label} STATS   ${dateStr.toUpperCase()}   STRAVA  `);
+  ctx.restore();
 
   return canvas;
 }
 
 function downloadMilestoneStatsCard(bucketKey) {
   const canvas = drawMilestoneStatsCard(bucketKey);
-  downloadCanvas(canvas, `actfit-${bucketKey}-stats-card.png`);
+  downloadCanvas(canvas, `strava-${bucketKey}-stats-card.png`);
 }
 
 document.getElementById("milestoneCardBtnRow").addEventListener("click", (e) => {

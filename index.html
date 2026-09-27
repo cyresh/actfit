@@ -1297,6 +1297,10 @@
         <label>Background image (optional)</label>
         <input type="file" id="activityCardImageInput" accept="image/*">
 
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);margin-top:2px;">
+          <input type="checkbox" id="transparentOverlayToggle" style="width:auto;"> Transparent overlay (no photo — just the stats, to layer over your own photo or video)
+        </label>
+
         <div class="templates-toggle-row">
           <button class="btn btn-ghost" id="showTemplatesBtn" style="font-size:11px;padding:6px 12px;display:none;">Choose a template</button>
         </div>
@@ -1312,6 +1316,7 @@
           <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
           <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
           <label><input type="checkbox" value="route" checked> Route line</label>
+          <label><input type="checkbox" value="splits"> Splits (per-km graph)</label>
         </div>
 
         <label>Title align</label>
@@ -1376,6 +1381,12 @@
           <span class="mini-range-value" id="routeRotationValue">0°</span>
         </div>
 
+        <label>Splits rotation</label>
+        <div class="control-row">
+          <input type="range" id="splitsRotationSlider" min="-45" max="45" value="0">
+          <span class="mini-range-value" id="splitsRotationValue">0°</span>
+        </div>
+
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);">
           <input type="checkbox" id="watermarkToggle" checked style="width:auto;"> Show "Strava Dash" watermark
         </label>
@@ -1404,6 +1415,12 @@
             <span class="resize-handle" id="routeResizeHandle"></span>
             <span class="pinch-hint">pinch to resize</span>
           </div>
+          <div class="drag-box" id="splitsDragBox">
+            <span class="drag-label">Splits</span>
+            <span class="rotate-handle" id="splitsRotateHandle"></span>
+            <span class="resize-handle" id="splitsResizeHandle"></span>
+            <span class="pinch-hint">pinch to resize</span>
+          </div>
         </div>
         <button class="btn btn-ghost" id="resetLayoutBtn" style="margin-top:10px;font-size:12px;padding:8px 14px;">Reset layout</button>
       </div>
@@ -1427,6 +1444,7 @@ const ACTIVITIES_KEY = "strava_dash_activities";
 const LAST_SYNC_KEY = "strava_dash_last_sync";
 const BEST_EFFORTS_KEY = "strava_dash_best_efforts";       // { [activityId]: [{name, elapsed_time}] }
 const BEST_EFFORTS_DONE_KEY = "strava_dash_best_efforts_done"; // array of activity ids already processed (resumable)
+const ACTIVITY_SPLITS_KEY = "strava_dash_activity_splits"; // { [activityId]: [{split, distance, moving_time, elapsed_time, elevation_difference, average_speed}] }
 const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + athlete stats} }
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
@@ -1478,6 +1496,34 @@ function loadBestEffortsDone() {
 }
 function saveBestEffortsDone(set) {
   localStorage.setItem(BEST_EFFORTS_DONE_KEY, JSON.stringify(Array.from(set)));
+}
+
+function loadActivitySplitsCache() {
+  const raw = localStorage.getItem(ACTIVITY_SPLITS_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+function saveActivitySplitsCache(obj) {
+  localStorage.setItem(ACTIVITY_SPLITS_KEY, JSON.stringify(obj));
+}
+// Fetches per-km splits for a single activity, one-time, cached forever after.
+// Reuses the same activity-detail endpoint as the best-efforts fetch above.
+async function ensureSplitsForActivity(activityId) {
+  const cache = loadActivitySplitsCache();
+  if (cache[activityId]) return cache[activityId];
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error("Not connected to Strava");
+  const detail = await fetchActivityDetail(accessToken, activityId);
+  const splits = (detail.splits_metric || []).map((s) => ({
+    split: s.split,
+    distance: s.distance,               // meters
+    moving_time: s.moving_time,         // seconds
+    elapsed_time: s.elapsed_time,
+    elevation_difference: s.elevation_difference,
+    average_speed: s.average_speed,     // m/s
+  }));
+  cache[activityId] = splits;
+  saveActivitySplitsCache(cache);
+  return splits;
 }
 
 function loadSegments() {
@@ -3607,7 +3653,7 @@ document.getElementById("milestoneCardBtnRow").addEventListener("click", async (
    Stage 10: per-activity downloadable card (image picker +
    custom stat checklist + route line drawn above the stats)
    ========================================================= */
-let activityCardState = { activityId: null, image: null }; // image = HTMLImageElement or null
+let activityCardState = { activityId: null, image: null, splits: null }; // image = HTMLImageElement or null; splits = per-km array or null
 
 function defaultActivityCardLayout() {
   return {
@@ -3615,12 +3661,14 @@ function defaultActivityCardLayout() {
     route: { x: 90 / 1080, y: 90 / 1080, w: (1080 - 180) / 1080, h: 300 / 1080, rotation: 0 },
     title: { x: 70 / 1080, y: 590 / 1080, scale: 1, rotation: 0, align: "left" },
     stats: { x: 70 / 1080, y: 690 / 1080, scale: 1, rotation: 0, arrangement: "grid", rowGap: 1, colGap: 1, align: "left" },
+    splits: { x: 90 / 1080, y: 760 / 1080, w: (1080 - 180) / 1080, h: 260 / 1080, rotation: 0 },
   };
 }
 let activityCardLayout = defaultActivityCardLayout();
 let activityCardTextColor = "auto"; // "auto" | "light" | "dark"
 let activityCardScrim = 0.6;        // 0..1, background darkness for readability
 let activityCardWatermark = true;
+let activityCardTransparent = false; // true = no photo, transparent PNG background
 
 // Four starting templates matching the reference screenshots: bottom stat bar,
 // title/stats split across opposite corners (two variants), and stacked-top.
@@ -3665,11 +3713,17 @@ function resetActivityCardStyle() {
   document.getElementById("statsRotationValue").textContent = "0°";
   document.getElementById("routeRotationSlider").value = 0;
   document.getElementById("routeRotationValue").textContent = "0°";
+  document.getElementById("splitsRotationSlider").value = 0;
+  document.getElementById("splitsRotationValue").textContent = "0°";
   document.getElementById("rowGapSlider").value = 100;
   document.getElementById("rowGapValue").textContent = "1.0x";
   document.getElementById("colGapSlider").value = 100;
   document.getElementById("colGapValue").textContent = "1.0x";
   document.getElementById("watermarkToggle").checked = true;
+  activityCardTransparent = false;
+  document.getElementById("transparentOverlayToggle").checked = false;
+  document.getElementById("activityCardImageInput").disabled = false;
+  document.getElementById("scrimSlider").disabled = false;
   document.querySelectorAll("#statsArrangementFilter button").forEach((b) => b.classList.toggle("active", b.dataset.arrangement === "grid"));
   document.querySelectorAll("#titleAlignFilter button").forEach((b) => b.classList.toggle("active", b.dataset.align === "left"));
   document.querySelectorAll("#statsAlignFilter button").forEach((b) => b.classList.toggle("active", b.dataset.align === "left"));
@@ -3697,7 +3751,7 @@ function renderPresetGallery() {
 
   ACTIVITY_CARD_PRESETS.forEach((preset) => {
     const previewLayout = { ...activityCardLayout, title: { ...preset.title }, stats: { ...preset.stats } };
-    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), previewLayout, currentCardStyle());
+    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), previewLayout, currentCardStyle(), activityCardState.splits);
 
     const thumb = document.createElement("div");
     thumb.className = "preset-thumb";
@@ -3724,9 +3778,10 @@ function renderPresetGallery() {
 function openActivityCardModal(activityId) {
   const activity = loadActivities()[activityId];
   if (!activity) return;
-  activityCardState = { activityId, image: null };
+  activityCardState = { activityId, image: null, splits: null };
   resetActivityCardStyle();
   document.getElementById("activityCardImageInput").value = "";
+  document.querySelectorAll("#activityCardChecklist input[value=splits]").forEach((cb) => { cb.checked = false; });
   document.getElementById("presetGallery").classList.add("hidden");
   document.getElementById("presetGallery").innerHTML = "";
   document.getElementById("showTemplatesBtn").style.display = "none";
@@ -3762,32 +3817,43 @@ function sampleAverageLuminance(ctx, x, y, w, h) {
   return count ? total / count : 128;
 }
 
-function drawActivityCard(activity, image, selection, layout, style) {
+function drawActivityCard(activity, image, selection, layout, style, splitsData) {
   const canvas = document.createElement("canvas");
   const W = 1080, H = 1080;
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  // background: picked image (cover-fit, pannable) or a plain dark fallback
-  ctx.fillStyle = "#12171A";
-  ctx.fillRect(0, 0, W, H);
-  if (image) {
-    const scale = Math.max(W / image.width, H / image.height);
-    const w = image.width * scale, h = image.height * scale;
-    const maxOffsetX = Math.max(0, (w - W) / 2);
-    const maxOffsetY = Math.max(0, (h - H) / 2);
-    const offX = Math.min(Math.max(layout.photo.offsetX, -maxOffsetX), maxOffsetX);
-    const offY = Math.min(Math.max(layout.photo.offsetY, -maxOffsetY), maxOffsetY);
-    ctx.drawImage(image, (W - w) / 2 + offX, (H - h) / 2 + offY, w, h);
-
-    const scrim = style.scrim;
-    const grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, `rgba(18,23,26,${(scrim * 0.7).toFixed(2)})`);
-    grad.addColorStop(0.55, `rgba(18,23,26,${(scrim * 0.5).toFixed(2)})`);
-    grad.addColorStop(1, `rgba(18,23,26,${Math.min(0.95, scrim * 1.3).toFixed(2)})`);
-    ctx.fillStyle = grad;
+  // background: picked image (cover-fit, pannable), a plain dark fallback, or
+  // nothing at all when "transparent overlay" mode is on (canvas starts fully
+  // transparent, so simply not painting it leaves it that way).
+  if (!style.transparent) {
+    ctx.fillStyle = "#12171A";
     ctx.fillRect(0, 0, W, H);
+    if (image) {
+      const scale = Math.max(W / image.width, H / image.height);
+      const w = image.width * scale, h = image.height * scale;
+      const maxOffsetX = Math.max(0, (w - W) / 2);
+      const maxOffsetY = Math.max(0, (h - H) / 2);
+      const offX = Math.min(Math.max(layout.photo.offsetX, -maxOffsetX), maxOffsetX);
+      const offY = Math.min(Math.max(layout.photo.offsetY, -maxOffsetY), maxOffsetY);
+      ctx.drawImage(image, (W - w) / 2 + offX, (H - h) / 2 + offY, w, h);
+
+      const scrim = style.scrim;
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, `rgba(18,23,26,${(scrim * 0.7).toFixed(2)})`);
+      grad.addColorStop(0.55, `rgba(18,23,26,${(scrim * 0.5).toFixed(2)})`);
+      grad.addColorStop(1, `rgba(18,23,26,${Math.min(0.95, scrim * 1.3).toFixed(2)})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+  } else {
+    // Drop shadow behind every element drawn from here on, so the stats stay
+    // legible once this transparent PNG is layered over an arbitrary photo/video.
+    ctx.shadowColor = "rgba(0,0,0,0.65)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
   }
 
   // route line — position/size/rotation driven by the draggable box in the UI
@@ -3942,6 +4008,69 @@ function drawActivityCard(activity, image, selection, layout, style) {
   ctx.textAlign = "left";
   ctx.restore();
 
+  // ---------- splits chart: one horizontal bar per km, longer bar = faster ----------
+  if (selection.splits && splitsData && splitsData.length) {
+    const boxX = layout.splits.x * W, boxY = layout.splits.y * H;
+    const boxW = layout.splits.w * W, boxH = layout.splits.h * H;
+    const centerX = boxX + boxW / 2, centerY = boxY + boxH / 2;
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate((layout.splits.rotation || 0) * Math.PI / 180);
+    ctx.translate(-centerX, -centerY);
+
+    const isRun = activity.sport === "run";
+    // seconds-per-km for runs (lower = faster), km/h for rides (higher = faster)
+    const paceVals = splitsData.map((s) => {
+      const km = (s.distance || 0) / 1000 || 1e-6;
+      return isRun ? (s.moving_time || 0) / km : km / ((s.moving_time || 1e-6) / 3600);
+    });
+    const minVal = Math.min(...paceVals), maxVal = Math.max(...paceVals);
+    const range = maxVal - minVal || 1;
+
+    const maxRows = Math.max(1, Math.floor(boxH / (28 * Math.min(layout.splits.w / (900 / 1080), 1.4))));
+    const rows = splitsData.length > maxRows
+      ? splitsData.filter((_, i) => i % Math.ceil(splitsData.length / maxRows) === 0)
+      : splitsData;
+    const rowPaceVals = splitsData.length > maxRows
+      ? paceVals.filter((_, i) => i % Math.ceil(splitsData.length / maxRows) === 0)
+      : paceVals;
+
+    const rowH = boxH / rows.length;
+    const barAreaX = boxX + 64;
+    const barMaxW = Math.max(20, boxW - 210);
+    const numFont = Math.max(10, Math.min(22, rowH * 0.42));
+    const labelFont = Math.max(10, Math.min(20, rowH * 0.38));
+
+    rows.forEach((s, i) => {
+      const val = rowPaceVals[i];
+      // faster split = longer bar, regardless of run (lower=faster) or ride (higher=faster)
+      const fastFrac = isRun ? (maxVal - val) / range : (val - minVal) / range;
+      const barW = Math.max(barMaxW * 0.12, barMaxW * (0.2 + fastFrac * 0.8));
+      const rowY = boxY + i * rowH;
+      const barH = Math.max(6, rowH * 0.5);
+      const barY = rowY + (rowH - barH) / 2;
+
+      ctx.textAlign = "left";
+      ctx.fillStyle = labelColor;
+      ctx.font = `600 ${Math.round(numFont)}px monospace`;
+      ctx.fillText(`${s.split ?? i + 1}`, barAreaX - 46, barY + barH * 0.8);
+
+      ctx.fillStyle = "#FF5A36";
+      ctx.fillRect(barAreaX, barY, barW, barH);
+
+      ctx.fillStyle = titleColor;
+      ctx.font = `700 ${Math.round(labelFont)}px sans-serif`;
+      const valueLabel = isRun
+        ? (() => { const m = Math.floor(val / 60), sec = Math.round(val % 60); return `${m}:${String(sec).padStart(2, "0")}/km`; })()
+        : `${val.toFixed(1)} km/h`;
+      ctx.fillText(valueLabel, barAreaX + barW + 14, barY + barH * 0.8);
+    });
+
+    ctx.textAlign = "left";
+    ctx.restore();
+  }
+
   // brand watermark (optional)
   if (style.watermark) {
     ctx.fillStyle = "#FF5A36";
@@ -3966,14 +4095,14 @@ function truncateCanvasText(ctx, text, maxWidth) {
 }
 
 function currentCardStyle() {
-  return { textColor: activityCardTextColor, scrim: activityCardScrim, watermark: activityCardWatermark };
+  return { textColor: activityCardTextColor, scrim: activityCardScrim, watermark: activityCardWatermark, transparent: activityCardTransparent };
 }
 
 function redrawActivityCardPreview() {
   const activity = loadActivities()[activityCardState.activityId];
   if (!activity) return;
   const selection = getActivityCardSelection();
-  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection, activityCardLayout, currentCardStyle());
+  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection, activityCardLayout, currentCardStyle(), activityCardState.splits);
   const previewCanvas = document.getElementById("activityCardPreview");
   const pctx = previewCanvas.getContext("2d");
   pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
@@ -4013,6 +4142,13 @@ function positionDragBoxes() {
   routeBox.style.width = `${activityCardLayout.route.w * rect.width}px`;
   routeBox.style.height = `${activityCardLayout.route.h * rect.height}px`;
   routeBox.style.transform = `rotate(${activityCardLayout.route.rotation || 0}deg)`;
+
+  const splitsBox = document.getElementById("splitsDragBox");
+  splitsBox.style.left = `${activityCardLayout.splits.x * rect.width}px`;
+  splitsBox.style.top = `${activityCardLayout.splits.y * rect.height}px`;
+  splitsBox.style.width = `${activityCardLayout.splits.w * rect.width}px`;
+  splitsBox.style.height = `${activityCardLayout.splits.h * rect.height}px`;
+  splitsBox.style.transform = `rotate(${activityCardLayout.splits.rotation || 0}deg)`;
 }
 
 // Generic drag-to-move + handle-to-resize wiring, shared by the stats and route boxes.
@@ -4200,14 +4336,46 @@ function initActivityCardModal() {
   });
   document.getElementById("showTemplatesBtn").addEventListener("click", renderPresetGallery);
   document.querySelectorAll("#activityCardChecklist input[type=checkbox]").forEach((cb) => {
-    cb.addEventListener("change", redrawActivityCardPreview);
+    if (cb.value === "splits") {
+      cb.addEventListener("change", async (e) => {
+        if (!e.target.checked) { redrawActivityCardPreview(); return; }
+        const label = e.target.closest("label");
+        const textNode = label.lastChild;
+        const originalText = textNode.textContent;
+        e.target.disabled = true;
+        textNode.textContent = " Loading splits…";
+        try {
+          activityCardState.splits = await ensureSplitsForActivity(activityCardState.activityId);
+          if (!activityCardState.splits || !activityCardState.splits.length) {
+            alert("Strava didn't return per-km splits for this activity.");
+            e.target.checked = false;
+          }
+        } catch (err) {
+          alert("Couldn't fetch splits: " + err.message);
+          e.target.checked = false;
+        } finally {
+          e.target.disabled = false;
+          textNode.textContent = originalText;
+          redrawActivityCardPreview();
+        }
+      });
+    } else {
+      cb.addEventListener("change", redrawActivityCardPreview);
+    }
+  });
+  document.getElementById("transparentOverlayToggle").addEventListener("change", (e) => {
+    activityCardTransparent = e.target.checked;
+    document.getElementById("activityCardImageInput").disabled = activityCardTransparent;
+    document.getElementById("scrimSlider").disabled = activityCardTransparent;
+    redrawActivityCardPreview();
   });
   document.getElementById("activityCardDownloadBtn").addEventListener("click", () => {
     const activity = loadActivities()[activityCardState.activityId];
     if (!activity) return;
-    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout, currentCardStyle());
+    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout, currentCardStyle(), activityCardState.splits);
     const link = document.createElement("a");
-    link.download = `strava-dash-${activity.sport}-${activity.id}.png`;
+    const suffix = activityCardTransparent ? "-overlay" : "";
+    link.download = `strava-dash-${activity.sport}-${activity.id}${suffix}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   });
@@ -4280,6 +4448,12 @@ function initActivityCardModal() {
     positionDragBoxes();
     redrawActivityCardPreview();
   });
+  document.getElementById("splitsRotationSlider").addEventListener("input", (e) => {
+    activityCardLayout.splits.rotation = parseInt(e.target.value, 10);
+    document.getElementById("splitsRotationValue").textContent = `${e.target.value}°`;
+    positionDragBoxes();
+    redrawActivityCardPreview();
+  });
   document.getElementById("watermarkToggle").addEventListener("change", (e) => {
     activityCardWatermark = e.target.checked;
     redrawActivityCardPreview();
@@ -4288,12 +4462,15 @@ function initActivityCardModal() {
   initDragResize("titleDragBox", "titleResizeHandle", "titleRotateHandle", () => activityCardLayout.title, false);
   initDragResize("statsDragBox", "statsResizeHandle", "statsRotateHandle", () => activityCardLayout.stats, false);
   initDragResize("routeDragBox", "routeResizeHandle", "routeRotateHandle", () => activityCardLayout.route, true);
+  initDragResize("splitsDragBox", "splitsResizeHandle", "splitsRotateHandle", () => activityCardLayout.splits, true);
   initRotateHandle("titleRotateHandle", "titleDragBox", () => activityCardLayout.title, "titleRotationSlider", "titleRotationValue");
   initRotateHandle("statsRotateHandle", "statsDragBox", () => activityCardLayout.stats, "statsRotationSlider", "statsRotationValue");
   initRotateHandle("routeRotateHandle", "routeDragBox", () => activityCardLayout.route, "routeRotationSlider", "routeRotationValue");
+  initRotateHandle("splitsRotateHandle", "splitsDragBox", () => activityCardLayout.splits, "splitsRotationSlider", "splitsRotationValue");
   initPinchZoom("titleDragBox", () => activityCardLayout.title, false);
   initPinchZoom("statsDragBox", () => activityCardLayout.stats, false);
   initPinchZoom("routeDragBox", () => activityCardLayout.route, true);
+  initPinchZoom("splitsDragBox", () => activityCardLayout.splits, true);
   initPhotoPan();
 
   // event delegation: "Card" buttons are re-created on every activities-list render,

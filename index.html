@@ -1691,13 +1691,13 @@ async function ensureSplitsForActivity(activityId) {
    at AI_IMAGE_DAILY_LIMIT per calendar day (device-local, since
    there's no account-level quota to check against).
    ========================================================= */
-function localDateKey(d = new Date()) {
+function aiTodayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function getAiImageUsage() {
   const raw = localStorage.getItem(AI_IMAGE_USAGE_KEY);
   const usage = raw ? JSON.parse(raw) : null;
-  if (!usage || usage.date !== localDateKey()) return { date: localDateKey(), count: 0 };
+  if (!usage || usage.date !== aiTodayKey()) return { date: aiTodayKey(), count: 0 };
   return usage;
 }
 function recordAiImageUsage() {

@@ -299,6 +299,60 @@
     max-width:960px;
     margin:0 20px 40px;
   }
+  .tile-index{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin:0 0 22px;
+  }
+  @media (min-width:640px){ .tile-index{ grid-template-columns:repeat(5,1fr); gap:12px; } }
+  .tile{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    min-height:88px;
+    padding:14px 6px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--chalk);
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    line-height:1.25;
+    text-align:center;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+    transition:border-color .15s, transform .1s;
+  }
+  .tile .tile-icon{ font-size:24px; line-height:1; }
+  .tile:hover{ border-color:var(--route); }
+  .tile:active{ transform:scale(0.96); border-color:var(--route); }
+  .tile:focus-visible{ outline:2px solid var(--route); outline-offset:2px; }
+  .to-index-btn{
+    position:fixed;
+    right:16px;
+    bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index:900;
+    width:46px;
+    height:46px;
+    border-radius:50%;
+    border:1px solid var(--route);
+    background:var(--surface);
+    color:var(--route);
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,0.35);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s;
+  }
+  .to-index-btn.visible{ opacity:1; pointer-events:auto; }
   .filter-bar{
     display:flex;
     flex-wrap:wrap;
@@ -824,6 +878,23 @@
     font-size:12px;
     color:var(--chalk);
   }
+  .modal-controls input[type="text"]{
+    background:var(--surface-2);
+    color:var(--chalk);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:8px 10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    width:100%;
+    box-sizing:border-box;
+  }
+  .ai-image-note{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin:6px 0 0;
+  }
   .checklist{
     display:flex;
     flex-direction:column;
@@ -1073,7 +1144,25 @@
 
   <!-- ============ STAGE 3: OVERVIEW DASHBOARD ============ -->
   <div class="dashboard hidden" id="dashboard">
-    <div class="filter-bar">
+    <nav class="tile-index" id="tileIndex" aria-label="Sections">
+      <button class="tile" data-target="connectedCard"><span class="tile-icon">👤</span>Profile &amp; sync</button>
+      <button class="tile" data-target="filterBar"><span class="tile-icon">📊</span>Overview</button>
+      <button class="tile" data-target="secVolume"><span class="tile-icon">📈</span>Weekly volume</button>
+      <button class="tile" data-target="secPace"><span class="tile-icon">⏱️</span>Pace trend</button>
+      <button class="tile" data-target="secCalendar"><span class="tile-icon">🗓️</span>Calendar</button>
+      <button class="tile" data-target="secRideYear"><span class="tile-icon">🚴</span>Ride stats</button>
+      <button class="tile" data-target="secRunYear"><span class="tile-icon">🏃</span>Run stats</button>
+      <button class="tile" data-target="secSplits"><span class="tile-icon">⚡</span>Fastest splits</button>
+      <button class="tile" data-target="secMilestones"><span class="tile-icon">🏅</span>Milestones</button>
+      <button class="tile" data-target="secBreakdown"><span class="tile-icon">📉</span>Breakdown</button>
+      <button class="tile" data-target="secActiveDays"><span class="tile-icon">✅</span>Active days</button>
+      <button class="tile" data-target="secActivities"><span class="tile-icon">📋</span>Activities</button>
+      <button class="tile" data-target="secPRs"><span class="tile-icon">🏆</span>Personal records</button>
+      <button class="tile" data-target="secRoutes"><span class="tile-icon">🗺️</span>All routes</button>
+      <button class="tile" data-target="secSegments"><span class="tile-icon">⛰️</span>Segments</button>
+    </nav>
+
+    <div class="filter-bar" id="filterBar">
       <div class="segmented" id="sportFilter">
         <button data-sport="all" class="active">All</button>
         <button data-sport="run">Run</button>
@@ -1112,12 +1201,12 @@
 
     <p class="empty-dash hidden" id="emptyDash">No activities in this range yet — try a wider filter, or hit Sync.</p>
 
-    <div class="section-title">Weekly volume — last 12 weeks</div>
+    <div class="section-title" id="secVolume">Weekly volume — last 12 weeks</div>
     <div class="chart-card">
       <canvas id="volumeChart" height="220"></canvas>
     </div>
 
-    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+    <div class="section-title" id="secPace" style="display:flex;align-items:center;justify-content:space-between;">
       <span>Pace / speed trend</span>
       <div class="segmented" id="paceRangeFilter">
         <button data-range="1m">1M</button>
@@ -1131,7 +1220,7 @@
       <canvas id="paceChart" height="220"></canvas>
     </div>
 
-    <div class="section-title">Activity calendar — last 12 months</div>
+    <div class="section-title" id="secCalendar">Activity calendar — last 12 months</div>
     <div class="chart-card">
       <div class="heatmap-outer">
         <div class="heatmap-daylabels" id="heatmapDayLabels"></div>
@@ -1150,19 +1239,19 @@
       </div>
     </div>
 
-    <div class="section-title-row">
+    <div class="section-title-row" id="secRideYear">
       <span class="section-title" style="margin:0;">Year-by-year — Ride Stats</span>
       <button class="mini-download-btn" id="downloadRideYearTableBtn" title="Download this table">↓</button>
     </div>
     <div class="year-table-wrap" id="rideYearTableWrap"></div>
 
-    <div class="section-title-row">
+    <div class="section-title-row" id="secRunYear">
       <span class="section-title" style="margin:0;">Year-by-year — Run Stats</span>
       <button class="mini-download-btn" id="downloadRunYearTableBtn" title="Download this table">↓</button>
     </div>
     <div class="year-table-wrap" id="runYearTableWrap"></div>
 
-    <div class="section-title-row">
+    <div class="section-title-row" id="secSplits">
       <span class="section-title" style="margin:0;">Year-by-year — Run Fastest Splits</span>
       <button class="mini-download-btn" id="downloadRunSplitsTableBtn" title="Download this table">↓</button>
     </div>
@@ -1170,7 +1259,7 @@
       <p class="empty-dash">No split data yet — click "Fetch splits" in your profile card above (uses Strava's own best-effort calculation, one-time per run activity).</p>
     </div>
 
-    <div class="section-title" style="margin-bottom:10px;">Milestone stats cards</div>
+    <div class="section-title" id="secMilestones" style="margin-bottom:10px;">Milestone stats cards</div>
     <div class="milestone-cards-wrap">
       <p class="milestone-cards-desc">Pick a milestone to generate a shareable, Strava-style stats card (PNG) with your count for that distance plus your running volume, this year and all-time.</p>
       <div class="milestone-btn-row" id="milestoneCardBtnRow">
@@ -1181,7 +1270,7 @@
       </div>
     </div>
 
-    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+    <div class="section-title" id="secBreakdown" style="display:flex;align-items:center;justify-content:space-between;">
       <span>Distance &amp; elevation breakdown</span>
       <div class="segmented" id="granularityFilter">
         <button data-gran="monthly" class="active">Monthly</button>
@@ -1205,12 +1294,12 @@
       </div>
     </div>
 
-    <div class="chart-card">
+    <div class="chart-card" id="secActiveDays">
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Active days</div>
       <canvas id="activeDaysChart" height="220"></canvas>
     </div>
 
-    <div class="section-title">Activities</div>
+    <div class="section-title" id="secActivities">Activities</div>
     <div class="activities-controls">
       <select id="activityTypeFilter"><option value="all">All types</option></select>
       <input type="text" id="activitySearch" placeholder="Search by name…" style="background:var(--surface);color:var(--chalk);border:1px solid var(--line);border-radius:4px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:12px;min-width:180px;">
@@ -1244,10 +1333,10 @@
       </table>
     </div>
 
-    <div class="section-title">Personal records</div>
+    <div class="section-title" id="secPRs">Personal records</div>
     <div class="pr-grid" id="prGrid"></div>
 
-    <div class="section-title">All routes</div>
+    <div class="section-title" id="secRoutes">All routes</div>
     <div class="chart-card">
       <div class="share-row" style="justify-content:space-between;margin-bottom:12px;">
         <div class="segmented" id="mapSportFilter">
@@ -1261,7 +1350,7 @@
       <p class="map-note">Tiles load from OpenStreetMap/CARTO/Esri over the network — routes are decoded and drawn from your cached data either way. Use the layers control (top right of the map) to switch to satellite view.</p>
     </div>
 
-    <div class="section-title">Starred segments</div>
+    <div class="section-title" id="secSegments">Starred segments</div>
     <div class="activities-controls">
       <span class="activities-count" id="segmentsCount"></span>
     </div>
@@ -1286,6 +1375,8 @@
     <p class="map-note">Rank only shows for Strava subscribers — Strava doesn't expose it for free accounts via the API.</p>
   </div>
 
+<button class="to-index-btn" id="toIndexBtn" title="Back to index" aria-label="Back to index">↑</button>
+
 <div class="modal-overlay hidden" id="activityCardModal">
   <div class="modal-box">
     <div class="modal-header">
@@ -1300,6 +1391,11 @@
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);margin-top:2px;">
           <input type="checkbox" id="transparentOverlayToggle" style="width:auto;"> Transparent overlay (no photo — just the stats, to layer over your own photo or video)
         </label>
+
+        <label>AI-generated background (optional)</label>
+        <input type="text" id="aiImagePromptInput" placeholder="Describe a scene, or leave blank to auto-describe this activity">
+        <button class="btn btn-ghost" id="generateAiImageBtn" style="width:100%;margin-top:8px;">✨ Generate AI background</button>
+        <p class="ai-image-note" id="aiImageNote"></p>
 
         <div class="templates-toggle-row">
           <button class="btn btn-ghost" id="showTemplatesBtn" style="font-size:11px;padding:6px 12px;display:none;">Choose a template</button>
@@ -1445,6 +1541,8 @@ const LAST_SYNC_KEY = "strava_dash_last_sync";
 const BEST_EFFORTS_KEY = "strava_dash_best_efforts";       // { [activityId]: [{name, elapsed_time}] }
 const BEST_EFFORTS_DONE_KEY = "strava_dash_best_efforts_done"; // array of activity ids already processed (resumable)
 const ACTIVITY_SPLITS_KEY = "strava_dash_activity_splits"; // { [activityId]: [{split, distance, moving_time, elapsed_time, elevation_difference, average_speed}] }
+const AI_IMAGE_USAGE_KEY = "strava_dash_ai_image_usage"; // { date: "YYYY-MM-DD", count: N }
+const AI_IMAGE_DAILY_LIMIT = 2; // self-imposed cap, keyed to this device/browser, to stay respectful of the free image service
 const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + athlete stats} }
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
@@ -1524,6 +1622,71 @@ async function ensureSplitsForActivity(activityId) {
   cache[activityId] = splits;
   saveActivitySplitsCache(cache);
   return splits;
+}
+
+/* =========================================================
+   AI-generated backgrounds — free, keyless text-to-image via
+   Pollinations.ai (https://pollinations.ai), capped client-side
+   at AI_IMAGE_DAILY_LIMIT per calendar day (device-local, since
+   there's no account-level quota to check against).
+   ========================================================= */
+function localDateKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function getAiImageUsage() {
+  const raw = localStorage.getItem(AI_IMAGE_USAGE_KEY);
+  const usage = raw ? JSON.parse(raw) : null;
+  if (!usage || usage.date !== localDateKey()) return { date: localDateKey(), count: 0 };
+  return usage;
+}
+function recordAiImageUsage() {
+  const usage = getAiImageUsage();
+  usage.count += 1;
+  localStorage.setItem(AI_IMAGE_USAGE_KEY, JSON.stringify(usage));
+  return usage;
+}
+function aiImageRemainingToday() {
+  return Math.max(0, AI_IMAGE_DAILY_LIMIT - getAiImageUsage().count);
+}
+
+// Builds a reasonable default scene description from the activity's own
+// numbers, so there's always something sensible to generate even if the
+// user doesn't type their own prompt.
+function buildDefaultAiPrompt(activity) {
+  const isRun = activity.sport === "run";
+  const km = (activity.distance || 0) / 1000;
+  const elev = activity.total_elevation_gain || 0;
+  const hour = new Date(activity.start_date_local).getHours();
+  const timeOfDay = hour < 6 ? "pre-dawn blue hour" : hour < 11 ? "soft early morning light" : hour < 17 ? "bright midday light" : hour < 20 ? "golden hour sunset light" : "night with city or trail lights";
+  const terrain = elev > 400 ? "a mountainous trail with steep switchbacks" : elev > 150 ? "rolling hills" : "a flat open landscape";
+  const activityWord = isRun ? (km > 15 ? "long-distance trail running" : "running") : (km > 60 ? "long-distance road cycling" : "cycling");
+  return `Cinematic wide-angle photograph of ${activityWord} through ${terrain}, ${timeOfDay}, dramatic sky, no visible people up close, no text or logos, high quality`;
+}
+
+async function fetchAiGeneratedImage(prompt) {
+  const seed = Math.floor(Math.random() * 1e9);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1080&seed=${seed}&nologo=true`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`image service returned ${res.status}`);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("couldn't decode the generated image"));
+    img.src = objectUrl;
+  });
+}
+
+function updateAiImageUI() {
+  const note = document.getElementById("aiImageNote");
+  const btn = document.getElementById("generateAiImageBtn");
+  if (!note || !btn) return;
+  const remaining = aiImageRemainingToday();
+  note.textContent = remaining > 0
+    ? `Free tier via Pollinations.ai — ${remaining}/${AI_IMAGE_DAILY_LIMIT} generation${remaining === 1 ? "" : "s"} left today.`
+    : `Today's ${AI_IMAGE_DAILY_LIMIT} free generations are used up — more tomorrow, or upload your own photo above.`;
+  btn.disabled = remaining <= 0;
 }
 
 function loadSegments() {
@@ -3782,6 +3945,8 @@ function openActivityCardModal(activityId) {
   resetActivityCardStyle();
   document.getElementById("activityCardImageInput").value = "";
   document.querySelectorAll("#activityCardChecklist input[value=splits]").forEach((cb) => { cb.checked = false; });
+  document.getElementById("aiImagePromptInput").value = buildDefaultAiPrompt(activity);
+  updateAiImageUI();
   document.getElementById("presetGallery").classList.add("hidden");
   document.getElementById("presetGallery").innerHTML = "";
   document.getElementById("showTemplatesBtn").style.display = "none";
@@ -4369,6 +4534,40 @@ function initActivityCardModal() {
     document.getElementById("scrimSlider").disabled = activityCardTransparent;
     redrawActivityCardPreview();
   });
+  document.getElementById("generateAiImageBtn").addEventListener("click", async () => {
+    if (aiImageRemainingToday() <= 0) {
+      alert(`You've used today's ${AI_IMAGE_DAILY_LIMIT} free AI image generations — try again tomorrow, or upload your own photo instead.`);
+      return;
+    }
+    const activity = loadActivities()[activityCardState.activityId];
+    if (!activity) return;
+    const btn = document.getElementById("generateAiImageBtn");
+    const promptInput = document.getElementById("aiImagePromptInput");
+    const prompt = (promptInput.value || buildDefaultAiPrompt(activity)).trim();
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+    try {
+      const img = await fetchAiGeneratedImage(prompt);
+      activityCardState.image = img;
+      activityCardLayout.photo.offsetX = 0;
+      activityCardLayout.photo.offsetY = 0;
+      if (activityCardTransparent) {
+        activityCardTransparent = false;
+        document.getElementById("transparentOverlayToggle").checked = false;
+        document.getElementById("activityCardImageInput").disabled = false;
+        document.getElementById("scrimSlider").disabled = false;
+      }
+      recordAiImageUsage();
+      redrawActivityCardPreview();
+      renderPresetGallery();
+    } catch (err) {
+      alert("Couldn't generate an image: " + err.message);
+    } finally {
+      btn.textContent = originalLabel;
+      updateAiImageUI();
+    }
+  });
   document.getElementById("activityCardDownloadBtn").addEventListener("click", () => {
     const activity = loadActivities()[activityCardState.activityId];
     if (!activity) return;
@@ -4633,6 +4832,31 @@ initPaceRangeFilter();
 initMapSportFilter();
 initActivitiesListControls();
 initSegmentsControls();
+/* ---------- tile index navigation ---------- */
+function initTileIndex() {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const behavior = reduce ? "auto" : "smooth";
+  document.querySelectorAll("#tileIndex .tile").forEach((tile) => {
+    tile.addEventListener("click", () => {
+      const el = document.getElementById(tile.dataset.target);
+      if (el) el.scrollIntoView({ behavior, block: "start" });
+    });
+  });
+  const backBtn = document.getElementById("toIndexBtn");
+  backBtn.addEventListener("click", () => {
+    document.getElementById("tileIndex").scrollIntoView({ behavior, block: "center" });
+  });
+  const onScroll = () => {
+    const idx = document.getElementById("tileIndex");
+    const dashVisible = !document.getElementById("dashboard").classList.contains("hidden");
+    const passed = dashVisible && idx.getBoundingClientRect().bottom < 0;
+    backBtn.classList.toggle("visible", passed);
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+}
+initTileIndex();
+
 initActivityCardModal();
 
 document.getElementById("downloadRideYearTableBtn").addEventListener("click", () => {

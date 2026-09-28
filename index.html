@@ -333,6 +333,40 @@
   .tile:hover{ border-color:var(--route); }
   .tile:active{ transform:scale(0.96); border-color:var(--route); }
   .tile:focus-visible{ outline:2px solid var(--route); outline-offset:2px; }
+  .sec-hidden{ display:none !important; }
+  .tile.active{ border-color:var(--route); background:rgba(255,90,54,0.10); }
+  .tile[data-action]{ border-style:dashed; }
+  .single-hint{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    text-align:center;
+    margin:0 0 22px;
+  }
+  .modal-rows .placeholder-row{ gap:12px; }
+  .modal-rows .placeholder-row .btn{ white-space:nowrap; flex-shrink:0; }
+  .setting-group-title{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .opt-row{
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    padding:14px;
+    margin-top:10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .opt-row.selected{ border-color:var(--route); }
+  .opt-row input{ width:auto; margin-top:3px; accent-color:var(--route); }
+  .opt-row strong{ display:block; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--chalk); }
+  .opt-row em{ display:block; font-style:normal; font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4; }
   .to-index-btn{
     position:fixed;
     right:16px;
@@ -1121,32 +1155,13 @@
       <span id="syncStatusText">ACTIVITY SYNC</span>
       <button class="btn btn-ghost" id="syncBtn">Sync now</button>
     </div>
-    <div class="divider"></div>
-    <div class="placeholder-row">
-      <span style="opacity:0.7;">Only pulls activities newer than your last sync. <a href="#" id="fullResyncLink" style="color:var(--route);">Full resync</a> if something looks off.</span>
-    </div>
-    <div class="divider"></div>
-    <div class="placeholder-row">
-      <span id="bestEffortsStatusText">RUN SPLITS (1K–MARATHON)</span>
-      <button class="btn btn-ghost" id="bestEffortsBtn">Fetch splits</button>
-    </div>
-    <div class="divider"></div>
-    <div class="placeholder-row">
-      <span id="segmentsStatusText">STARRED SEGMENTS</span>
-      <button class="btn btn-ghost" id="segmentsBtn">Fetch segments</button>
-    </div>
-    <div class="divider"></div>
-    <div class="placeholder-row">
-      <span>SESSION</span>
-      <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
-    </div>
   </div>
 
   <!-- ============ STAGE 3: OVERVIEW DASHBOARD ============ -->
   <div class="dashboard hidden" id="dashboard">
     <nav class="tile-index" id="tileIndex" aria-label="Sections">
-      <button class="tile" data-target="connectedCard"><span class="tile-icon">👤</span>Profile &amp; sync</button>
-      <button class="tile" data-target="filterBar"><span class="tile-icon">📊</span>Overview</button>
+      <button class="tile" data-action="sync"><span class="tile-icon">🔄</span>Sync &amp; session</button>
+      <button class="tile" data-target="filterBar" data-sec="secOverview"><span class="tile-icon">📊</span>Overview</button>
       <button class="tile" data-target="secVolume"><span class="tile-icon">📈</span>Weekly volume</button>
       <button class="tile" data-target="secPace"><span class="tile-icon">⏱️</span>Pace trend</button>
       <button class="tile" data-target="secCalendar"><span class="tile-icon">🗓️</span>Calendar</button>
@@ -1160,7 +1175,9 @@
       <button class="tile" data-target="secPRs"><span class="tile-icon">🏆</span>Personal records</button>
       <button class="tile" data-target="secRoutes"><span class="tile-icon">🗺️</span>All routes</button>
       <button class="tile" data-target="secSegments"><span class="tile-icon">⛰️</span>Segments</button>
+      <button class="tile" data-action="settings"><span class="tile-icon">⚙️</span>Settings</button>
     </nav>
+    <p class="single-hint" id="singleHint" style="display:none;">Single-view mode: tap a tile to show only that section.</p>
 
     <div class="filter-bar" id="filterBar">
       <div class="segmented" id="sportFilter">
@@ -1176,7 +1193,7 @@
       </div>
     </div>
 
-    <div class="share-row">
+    <div class="share-row" id="secOverview">
       <button class="btn btn-ghost" id="downloadCardBtn">Download stats card ↓</button>
     </div>
 
@@ -1374,6 +1391,50 @@
     </div>
     <p class="map-note">Rank only shows for Strava subscribers — Strava doesn't expose it for free accounts via the API.</p>
   </div>
+
+<div class="modal-overlay hidden" id="syncModal">
+  <div class="modal-box modal-rows" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">Sync &amp; session</div>
+      <button class="modal-close" data-close-modal="syncModal">&times;</button>
+    </div>
+    <div class="placeholder-row">
+      <span id="syncStatusText2">ACTIVITY SYNC</span>
+      <button class="btn btn-ghost" id="syncBtn2">Sync now</button>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span style="opacity:0.7;">Only pulls activities newer than your last sync. <a href="#" id="fullResyncLink" style="color:var(--route);">Full resync</a> if something looks off.</span>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span id="bestEffortsStatusText">RUN SPLITS (1K–MARATHON)</span>
+      <button class="btn btn-ghost" id="bestEffortsBtn">Fetch splits</button>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span id="segmentsStatusText">STARRED SEGMENTS</span>
+      <button class="btn btn-ghost" id="segmentsBtn">Fetch segments</button>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span>SESSION</span>
+      <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="settingsModal">
+  <div class="modal-box" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title">Settings</div>
+      <button class="modal-close" data-close-modal="settingsModal">&times;</button>
+    </div>
+    <div class="setting-group-title">When I tap a tile</div>
+    <label class="opt-row"><input type="radio" name="viewMode" value="scroll"><span><strong>Scroll all data</strong><em>Everything stays on one long page; a tile jumps to its section.</em></span></label>
+    <label class="opt-row"><input type="radio" name="viewMode" value="single"><span><strong>Show one section</strong><em>A tile shows only that data. Tap it again to close it.</em></span></label>
+  </div>
+</div>
 
 <button class="to-index-btn" id="toIndexBtn" title="Back to index" aria-label="Back to index">↑</button>
 
@@ -4833,24 +4894,136 @@ initMapSportFilter();
 initActivitiesListControls();
 initSegmentsControls();
 /* ---------- tile index navigation ---------- */
+const VIEW_MODE_KEY = "strava_dash_view_mode"; // "scroll" (default) | "single"
+const viewState = { mode: "scroll", active: null };
+try { if (localStorage.getItem(VIEW_MODE_KEY) === "single") viewState.mode = "single"; } catch (e) {}
+
+function openModalById(id) { document.getElementById(id).classList.remove("hidden"); }
+function closeModalById(id) { document.getElementById(id).classList.add("hidden"); }
+
+// Group the dashboard's top-level blocks by section so single-view can show one group.
+function tagDashboardSections() {
+  const dash = document.getElementById("dashboard");
+  const skip = new Set(["tileIndex", "singleHint"]);
+  const starts = new Set(["secOverview", "secVolume", "secPace", "secCalendar", "secRideYear", "secRunYear",
+    "secSplits", "secMilestones", "secBreakdown", "secActiveDays", "secActivities", "secPRs", "secRoutes", "secSegments"]);
+  let current = "filters";
+  Array.from(dash.children).forEach((el) => {
+    if (skip.has(el.id)) return;
+    if (el.classList.contains("filter-bar")) current = "filters";
+    else if (starts.has(el.id)) current = el.id;
+    el.dataset.sec = current;
+  });
+}
+
+function applyViewMode() {
+  const dash = document.getElementById("dashboard");
+  const single = viewState.mode === "single";
+  const active = single ? viewState.active : null;
+  dash.querySelectorAll(":scope > [data-sec]").forEach((el) => {
+    const sec = el.dataset.sec;
+    const show = !single || Boolean(active && (sec === "filters" || sec === active));
+    el.classList.toggle("sec-hidden", !show);
+  });
+  document.querySelectorAll("#tileIndex .tile[data-target]").forEach((t) => {
+    t.classList.toggle("active", single && (t.dataset.sec || t.dataset.target) === active);
+  });
+  document.getElementById("singleHint").style.display = single && !active ? "" : "none";
+}
+
+// Charts and the Leaflet map can't size themselves while display:none, so nudge them after a reveal.
+function refreshAfterReveal() {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+    if (routeMapInstance) {
+      routeMapInstance.invalidateSize();
+      if (viewState.mode === "scroll" || viewState.active === "secRoutes") resetRouteMapView();
+    }
+  });
+}
+
+function syncSettingsUI() {
+  document.querySelectorAll('input[name="viewMode"]').forEach((r) => {
+    r.checked = r.value === viewState.mode;
+    r.closest(".opt-row").classList.toggle("selected", r.checked);
+  });
+}
+
+// The Sync modal mirrors the main "Sync now" row so both always show the same state.
+function initSyncMirror() {
+  const srcText = document.getElementById("syncStatusText"), dstText = document.getElementById("syncStatusText2");
+  const srcBtn = document.getElementById("syncBtn"), dstBtn = document.getElementById("syncBtn2");
+  const copy = () => {
+    dstText.innerHTML = srcText.innerHTML;
+    dstBtn.textContent = srcBtn.textContent;
+    dstBtn.disabled = srcBtn.disabled;
+  };
+  const mo = new MutationObserver(copy);
+  mo.observe(srcText, { childList: true, characterData: true, subtree: true });
+  mo.observe(srcBtn, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["disabled"] });
+  copy();
+  dstBtn.addEventListener("click", () => srcBtn.click());
+}
+
 function initTileIndex() {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const behavior = reduce ? "auto" : "smooth";
+  const smooth = reduce ? "auto" : "smooth";
+  tagDashboardSections();
+  applyViewMode();
+  initSyncMirror();
+
   document.querySelectorAll("#tileIndex .tile").forEach((tile) => {
     tile.addEventListener("click", () => {
-      const el = document.getElementById(tile.dataset.target);
-      if (el) el.scrollIntoView({ behavior, block: "start" });
+      const action = tile.dataset.action;
+      if (action === "sync") { openModalById("syncModal"); return; }
+      if (action === "settings") { syncSettingsUI(); openModalById("settingsModal"); return; }
+      const target = tile.dataset.target;
+      if (viewState.mode === "single") {
+        const key = tile.dataset.sec || target;
+        viewState.active = viewState.active === key ? null : key; // tap again to close
+        applyViewMode();
+        if (viewState.active) {
+          refreshAfterReveal();
+          document.getElementById("filterBar").scrollIntoView({ behavior: "auto", block: "start" });
+        }
+      } else {
+        document.getElementById(target).scrollIntoView({ behavior: smooth, block: "start" });
+      }
     });
   });
+
+  document.querySelectorAll('input[name="viewMode"]').forEach((r) => {
+    r.addEventListener("change", () => {
+      if (!r.checked) return;
+      viewState.mode = r.value;
+      viewState.active = null;
+      try { localStorage.setItem(VIEW_MODE_KEY, r.value); } catch (e) {}
+      syncSettingsUI();
+      applyViewMode();
+      refreshAfterReveal();
+    });
+  });
+
+  // modal close: X button, tapping the dark backdrop, or Escape
+  document.querySelectorAll("[data-close-modal]").forEach((b) => {
+    b.addEventListener("click", () => closeModalById(b.dataset.closeModal));
+  });
+  ["syncModal", "settingsModal"].forEach((id) => {
+    document.getElementById(id).addEventListener("click", (e) => { if (e.target.id === id) closeModalById(id); });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") ["syncModal", "settingsModal"].forEach(closeModalById);
+  });
+  document.getElementById("disconnectBtn").addEventListener("click", () => closeModalById("syncModal"));
+
   const backBtn = document.getElementById("toIndexBtn");
   backBtn.addEventListener("click", () => {
-    document.getElementById("tileIndex").scrollIntoView({ behavior, block: "center" });
+    document.getElementById("tileIndex").scrollIntoView({ behavior: smooth, block: "center" });
   });
   const onScroll = () => {
     const idx = document.getElementById("tileIndex");
     const dashVisible = !document.getElementById("dashboard").classList.contains("hidden");
-    const passed = dashVisible && idx.getBoundingClientRect().bottom < 0;
-    backBtn.classList.toggle("visible", passed);
+    backBtn.classList.toggle("visible", dashVisible && idx.getBoundingClientRect().bottom < 0);
   };
   window.addEventListener("scroll", onScroll, { passive: true });
   onScroll();

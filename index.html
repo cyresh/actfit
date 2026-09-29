@@ -1071,6 +1071,110 @@
   #titleDragBox .drag-label{ color:var(--contour); }
   #titleDragBox .resize-handle{ background:var(--contour); }
 
+  .ac-editor{
+    position:fixed; inset:0; z-index:1000;
+    background:var(--ink);
+    display:flex; flex-direction:column;
+  }
+  .ac-editor.hidden{ display:none; }
+  .ac-topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    padding:10px 12px; padding-top:calc(10px + env(safe-area-inset-top,0px));
+    background:var(--surface); border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .ac-icon-btn{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    background:transparent; border:1px solid var(--line); color:var(--chalk);
+    font-size:18px; line-height:1; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .ac-icon-btn:active{ background:var(--surface-2); }
+  .ac-size-switch{ display:flex; gap:6px; }
+  .ac-size-switch button{
+    background:var(--surface-2); border:1px solid var(--line); color:var(--muted);
+    font-family:'JetBrains Mono',monospace; font-size:11px; padding:8px 12px;
+    border-radius:20px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    min-height:36px;
+  }
+  .ac-size-switch button.active{ color:var(--ink); background:var(--route); border-color:var(--route); font-weight:700; }
+  .ac-stage-wrap{
+    flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
+    padding:14px; overflow:hidden; position:relative;
+    background-image:
+      linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(255,255,255,0.05) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.05) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.05) 75%);
+    background-size:24px 24px;
+    background-position:0 0,0 12px,12px -12px,-12px 0px;
+  }
+  #activityCardStage{ position:relative; touch-action:none; }
+  #activityCardPreview{
+    display:block; width:100%; height:100%;
+    border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,0.5);
+  }
+  .ac-hint{
+    text-align:center; font-family:'JetBrains Mono',monospace; font-size:10.5px;
+    color:var(--muted); padding:6px 14px; margin:0; flex-shrink:0;
+  }
+  .ac-toolbar{
+    display:flex; background:var(--surface); border-top:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .ac-tab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:9px 4px 7px; background:none; border:none; color:var(--muted);
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; text-transform:uppercase;
+    letter-spacing:0.03em; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    min-height:52px;
+  }
+  .ac-tab span{ font-size:19px; line-height:1; }
+  .ac-tab.active{ color:var(--route); }
+  .ac-sharebar{
+    display:flex; gap:10px; padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
+    background:var(--surface); border-top:1px solid var(--line); flex-shrink:0;
+  }
+  .ac-share-btn{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:13px 10px; border-radius:10px; font-family:'JetBrains Mono',monospace;
+    font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;
+    cursor:pointer; border:1px solid var(--line); min-height:48px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .ac-share-btn span{ font-size:16px; }
+  .ac-share-secondary{ background:var(--surface-2); color:var(--chalk); }
+  .ac-share-primary{ background:var(--route); color:#fff; border-color:var(--route); }
+  .ac-share-btn:active{ transform:scale(0.97); }
+  .ac-sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1290; }
+  .ac-sheet-backdrop.hidden{ display:none; }
+  .ac-sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:1300;
+    max-height:64vh; display:flex; flex-direction:column;
+    background:var(--surface); border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0; box-shadow:0 -10px 30px rgba(0,0,0,0.45);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .ac-sheet.hidden{ display:none; }
+  .ac-sheet-handle{ width:36px; height:4px; background:var(--line); border-radius:2px; margin:10px auto 2px; flex-shrink:0; }
+  .ac-sheet-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 18px 12px; margin-bottom:6px; border-bottom:1px solid var(--line);
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--chalk);
+    text-transform:uppercase; letter-spacing:0.06em; flex-shrink:0;
+  }
+  .ac-sheet-close{
+    background:none; border:none; color:var(--route); cursor:pointer;
+    font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+    text-transform:uppercase; padding:8px 6px; -webkit-tap-highlight-color:transparent;
+  }
+  .ac-sheet-body{ overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 18px 22px; }
+  .ac-sheet-body .checklist label{ padding:9px 2px; border-bottom:1px solid var(--line); min-height:24px; }
+  .ac-sheet-body .checklist label:last-child{ border-bottom:none; }
+  .ac-sheet-body .segmented{ display:flex; }
+  .ac-sheet-body .segmented button{ padding:12px 8px; }
+
   .preset-gallery{
     display:flex;
     gap:10px;
@@ -1452,148 +1556,186 @@
 
 <button class="to-index-btn" id="toIndexBtn" title="Back to index" aria-label="Back to index">↑</button>
 
-<div class="modal-overlay hidden" id="activityCardModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">Activity card</div>
-      <button class="modal-close" id="activityCardModalClose">&times;</button>
+<div class="ac-editor hidden" id="activityCardModal">
+  <div class="ac-topbar">
+    <button class="ac-icon-btn" id="activityCardModalClose" aria-label="Close editor">&times;</button>
+    <div class="ac-size-switch" id="cardSizeSwitch">
+      <button data-size="story">9:16</button>
+      <button data-size="portrait">4:5</button>
+      <button data-size="square">1:1</button>
     </div>
-    <div class="modal-body">
-      <div class="modal-controls">
-        <label>Background image (optional)</label>
-        <input type="file" id="activityCardImageInput" accept="image/*">
+    <button class="ac-icon-btn" id="resetLayoutBtn" title="Reset layout" aria-label="Reset layout">&#8635;</button>
+  </div>
 
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);margin-top:2px;">
-          <input type="checkbox" id="transparentOverlayToggle" style="width:auto;"> Transparent overlay (no photo — just the stats, to layer over your own photo or video)
-        </label>
-
-        <label>AI-generated background (optional)</label>
-        <input type="text" id="aiImagePromptInput" placeholder="Describe a scene, or leave blank to auto-describe this activity">
-        <button class="btn btn-ghost" id="generateAiImageBtn" style="width:100%;margin-top:8px;">✨ Generate AI background</button>
-        <p class="ai-image-note" id="aiImageNote"></p>
-
-        <div class="templates-toggle-row">
-          <button class="btn btn-ghost" id="showTemplatesBtn" style="font-size:11px;padding:6px 12px;display:none;">Choose a template</button>
-        </div>
-        <div class="preset-gallery hidden" id="presetGallery"></div>
-
-        <label>Stats to include</label>
-        <div class="checklist" id="activityCardChecklist">
-          <label><input type="checkbox" value="name" checked> Activity name</label>
-          <label><input type="checkbox" value="date" checked> Date</label>
-          <label><input type="checkbox" value="distance" checked> Distance</label>
-          <label><input type="checkbox" value="time" checked> Moving time</label>
-          <label><input type="checkbox" value="pace" checked> Pace / speed</label>
-          <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
-          <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
-          <label><input type="checkbox" value="route" checked> Route line</label>
-          <label><input type="checkbox" value="splits"> Splits (per-km graph)</label>
-        </div>
-
-        <label>Title align</label>
-        <div class="segmented" id="titleAlignFilter" style="width:100%;">
-          <button data-align="left" class="active" style="flex:1;">Left</button>
-          <button data-align="right" style="flex:1;">Right</button>
-        </div>
-
-        <label>Stats layout</label>
-        <div class="segmented" id="statsArrangementFilter" style="width:100%;">
-          <button data-arrangement="grid" class="active" style="flex:1;">Grid</button>
-          <button data-arrangement="row" style="flex:1;">1 line</button>
-          <button data-arrangement="stacked" style="flex:1;">Stacked</button>
-        </div>
-
-        <label>Stats align</label>
-        <div class="segmented" id="statsAlignFilter" style="width:100%;">
-          <button data-align="left" class="active" style="flex:1;">Left</button>
-          <button data-align="right" style="flex:1;">Right</button>
-        </div>
-
-        <label>Row spacing</label>
-        <div class="control-row">
-          <input type="range" id="rowGapSlider" min="50" max="250" value="100">
-          <span class="mini-range-value" id="rowGapValue">1.0x</span>
-        </div>
-
-        <label>Number spacing</label>
-        <div class="control-row">
-          <input type="range" id="colGapSlider" min="50" max="250" value="100">
-          <span class="mini-range-value" id="colGapValue">1.0x</span>
-        </div>
-
-        <label>Text color</label>
-        <select id="textColorSelect">
-          <option value="auto" selected>Auto (matches photo)</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-
-        <label>Background darkness</label>
-        <div class="control-row">
-          <input type="range" id="scrimSlider" min="0" max="100" value="60">
-          <span class="mini-range-value" id="scrimValue">60%</span>
-        </div>
-
-        <label>Title rotation</label>
-        <div class="control-row">
-          <input type="range" id="titleRotationSlider" min="-45" max="45" value="0">
-          <span class="mini-range-value" id="titleRotationValue">0°</span>
-        </div>
-
-        <label>Stats rotation</label>
-        <div class="control-row">
-          <input type="range" id="statsRotationSlider" min="-45" max="45" value="0">
-          <span class="mini-range-value" id="statsRotationValue">0°</span>
-        </div>
-
-        <label>Route rotation</label>
-        <div class="control-row">
-          <input type="range" id="routeRotationSlider" min="-45" max="45" value="0">
-          <span class="mini-range-value" id="routeRotationValue">0°</span>
-        </div>
-
-        <label>Splits rotation</label>
-        <div class="control-row">
-          <input type="range" id="splitsRotationSlider" min="-45" max="45" value="0">
-          <span class="mini-range-value" id="splitsRotationValue">0°</span>
-        </div>
-
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);">
-          <input type="checkbox" id="watermarkToggle" checked style="width:auto;"> Show "Strava Dash" watermark
-        </label>
-
-        <button class="btn btn-primary" id="activityCardDownloadBtn" style="margin-top:20px;width:100%;">Download card</button>
+  <div class="ac-stage-wrap" id="acStageWrap">
+    <div id="activityCardStage">
+      <canvas id="activityCardPreview" width="1080" height="1350"></canvas>
+      <div class="drag-box" id="titleDragBox">
+        <span class="drag-label">Title</span>
+        <span class="rotate-handle" id="titleRotateHandle"></span>
+        <span class="resize-handle" id="titleResizeHandle"></span>
+        <span class="pinch-hint">pinch to resize</span>
       </div>
-      <div>
-        <label style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">Preview — drag boxes to move · corner dot resizes (pinch on mobile) · colored dot rotates · drag empty photo area to reposition it</label>
-        <div id="activityCardStage">
-          <canvas id="activityCardPreview" width="1080" height="1080"></canvas>
-          <div class="drag-box" id="titleDragBox">
-            <span class="drag-label">Title</span>
-            <span class="rotate-handle" id="titleRotateHandle"></span>
-            <span class="resize-handle" id="titleResizeHandle"></span>
-            <span class="pinch-hint">pinch to resize</span>
-          </div>
-          <div class="drag-box" id="statsDragBox">
-            <span class="drag-label">Stats</span>
-            <span class="rotate-handle" id="statsRotateHandle"></span>
-            <span class="resize-handle" id="statsResizeHandle"></span>
-            <span class="pinch-hint">pinch to resize</span>
-          </div>
-          <div class="drag-box" id="routeDragBox">
-            <span class="drag-label">Route</span>
-            <span class="rotate-handle" id="routeRotateHandle"></span>
-            <span class="resize-handle" id="routeResizeHandle"></span>
-            <span class="pinch-hint">pinch to resize</span>
-          </div>
-          <div class="drag-box" id="splitsDragBox">
-            <span class="drag-label">Splits</span>
-            <span class="rotate-handle" id="splitsRotateHandle"></span>
-            <span class="resize-handle" id="splitsResizeHandle"></span>
-            <span class="pinch-hint">pinch to resize</span>
-          </div>
-        </div>
-        <button class="btn btn-ghost" id="resetLayoutBtn" style="margin-top:10px;font-size:12px;padding:8px 14px;">Reset layout</button>
+      <div class="drag-box" id="statsDragBox">
+        <span class="drag-label">Stats</span>
+        <span class="rotate-handle" id="statsRotateHandle"></span>
+        <span class="resize-handle" id="statsResizeHandle"></span>
+        <span class="pinch-hint">pinch to resize</span>
+      </div>
+      <div class="drag-box" id="routeDragBox">
+        <span class="drag-label">Route</span>
+        <span class="rotate-handle" id="routeRotateHandle"></span>
+        <span class="resize-handle" id="routeResizeHandle"></span>
+        <span class="pinch-hint">pinch to resize</span>
+      </div>
+      <div class="drag-box" id="splitsDragBox">
+        <span class="drag-label">Splits</span>
+        <span class="rotate-handle" id="splitsRotateHandle"></span>
+        <span class="resize-handle" id="splitsResizeHandle"></span>
+        <span class="pinch-hint">pinch to resize</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="ac-hint">Drag a box to move it · drag or pinch its dot to resize · twist the green dot to rotate</p>
+
+  <div class="ac-toolbar">
+    <button class="ac-tab" data-panel="panelBackground"><span>&#128444;&#65039;</span>Background</button>
+    <button class="ac-tab" data-panel="panelData"><span>&#128202;</span>Data</button>
+    <button class="ac-tab" data-panel="panelStyle"><span>&#127912;</span>Style</button>
+    <button class="ac-tab" data-panel="panelLayout"><span>&#8596;&#65039;</span>Layout</button>
+  </div>
+
+  <div class="ac-sharebar">
+    <button class="ac-share-btn ac-share-secondary" id="activityCardShareBtn"><span>&#8631;</span>Share</button>
+    <button class="ac-share-btn ac-share-primary" id="activityCardDownloadBtn"><span>&#11015;&#65039;</span>Download</button>
+  </div>
+
+  <div class="ac-sheet-backdrop hidden" id="acSheetBackdrop"></div>
+
+  <div class="ac-sheet hidden" id="panelBackground">
+    <div class="ac-sheet-handle"></div>
+    <div class="ac-sheet-head"><span>Background</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-body modal-controls">
+      <label>Background image (optional)</label>
+      <input type="file" id="activityCardImageInput" accept="image/*">
+
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);margin-top:2px;">
+        <input type="checkbox" id="transparentOverlayToggle" style="width:auto;"> Transparent overlay (no photo — just the stats, to layer over your own photo or video)
+      </label>
+
+      <label>AI-generated background (optional)</label>
+      <input type="text" id="aiImagePromptInput" placeholder="Describe a scene, or leave blank to auto-describe this activity">
+      <button class="btn btn-ghost" id="generateAiImageBtn" style="width:100%;margin-top:8px;">&#10024; Generate AI background</button>
+      <p class="ai-image-note" id="aiImageNote"></p>
+    </div>
+  </div>
+
+  <div class="ac-sheet hidden" id="panelData">
+    <div class="ac-sheet-handle"></div>
+    <div class="ac-sheet-head"><span>Data</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-body modal-controls">
+      <div class="templates-toggle-row">
+        <button class="btn btn-ghost" id="showTemplatesBtn" style="font-size:11px;padding:6px 12px;">Choose a template</button>
+      </div>
+      <div class="preset-gallery hidden" id="presetGallery"></div>
+
+      <label>Stats to include</label>
+      <div class="checklist" id="activityCardChecklist">
+        <label><input type="checkbox" value="name" checked> Activity name</label>
+        <label><input type="checkbox" value="date" checked> Date</label>
+        <label><input type="checkbox" value="distance" checked> Distance</label>
+        <label><input type="checkbox" value="time" checked> Moving time</label>
+        <label><input type="checkbox" value="pace" checked> Pace / speed</label>
+        <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
+        <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
+        <label><input type="checkbox" value="route" checked> Route line</label>
+        <label><input type="checkbox" value="splits"> Splits (per-km graph)</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="ac-sheet hidden" id="panelStyle">
+    <div class="ac-sheet-handle"></div>
+    <div class="ac-sheet-head"><span>Style</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-body modal-controls">
+      <label>Title align</label>
+      <div class="segmented" id="titleAlignFilter" style="width:100%;">
+        <button data-align="left" class="active" style="flex:1;">Left</button>
+        <button data-align="right" style="flex:1;">Right</button>
+      </div>
+
+      <label>Stats layout</label>
+      <div class="segmented" id="statsArrangementFilter" style="width:100%;">
+        <button data-arrangement="grid" class="active" style="flex:1;">Grid</button>
+        <button data-arrangement="row" style="flex:1;">1 line</button>
+        <button data-arrangement="stacked" style="flex:1;">Stacked</button>
+      </div>
+
+      <label>Stats align</label>
+      <div class="segmented" id="statsAlignFilter" style="width:100%;">
+        <button data-align="left" class="active" style="flex:1;">Left</button>
+        <button data-align="right" style="flex:1;">Right</button>
+      </div>
+
+      <label>Row spacing</label>
+      <div class="control-row">
+        <input type="range" id="rowGapSlider" min="50" max="250" value="100">
+        <span class="mini-range-value" id="rowGapValue">1.0x</span>
+      </div>
+
+      <label>Number spacing</label>
+      <div class="control-row">
+        <input type="range" id="colGapSlider" min="50" max="250" value="100">
+        <span class="mini-range-value" id="colGapValue">1.0x</span>
+      </div>
+
+      <label>Text color</label>
+      <select id="textColorSelect">
+        <option value="auto" selected>Auto (matches photo)</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+
+      <label>Background darkness</label>
+      <div class="control-row">
+        <input type="range" id="scrimSlider" min="0" max="100" value="60">
+        <span class="mini-range-value" id="scrimValue">60%</span>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);">
+        <input type="checkbox" id="watermarkToggle" checked style="width:auto;"> Show "Strava Dash" watermark
+      </label>
+    </div>
+  </div>
+
+  <div class="ac-sheet hidden" id="panelLayout">
+    <div class="ac-sheet-handle"></div>
+    <div class="ac-sheet-head"><span>Layout</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-body modal-controls">
+      <p class="ai-image-note" style="margin-top:0;">Fine-tune rotation here, or twist a box's green dot right on the preview.</p>
+      <label>Title rotation</label>
+      <div class="control-row">
+        <input type="range" id="titleRotationSlider" min="-45" max="45" value="0">
+        <span class="mini-range-value" id="titleRotationValue">0°</span>
+      </div>
+
+      <label>Stats rotation</label>
+      <div class="control-row">
+        <input type="range" id="statsRotationSlider" min="-45" max="45" value="0">
+        <span class="mini-range-value" id="statsRotationValue">0°</span>
+      </div>
+
+      <label>Route rotation</label>
+      <div class="control-row">
+        <input type="range" id="routeRotationSlider" min="-45" max="45" value="0">
+        <span class="mini-range-value" id="routeRotationValue">0°</span>
+      </div>
+
+      <label>Splits rotation</label>
+      <div class="control-row">
+        <input type="range" id="splitsRotationSlider" min="-45" max="45" value="0">
+        <span class="mini-range-value" id="splitsRotationValue">0°</span>
       </div>
     </div>
   </div>
@@ -3924,6 +4066,22 @@ document.getElementById("milestoneCardBtnRow").addEventListener("click", async (
    ========================================================= */
 let activityCardState = { activityId: null, image: null, splits: null }; // image = HTMLImageElement or null; splits = per-km array or null
 
+// Card canvas is always 1080px wide; only the height changes with the chosen
+// aspect ratio, so every x-fraction in the layout keeps the same meaning
+// across sizes and only y-fractions need to reflow (which they do naturally).
+const CARD_SIZE_KEY = "strava_dash_card_size";
+const CARD_SIZES = {
+  story: { w: 1080, h: 1920 },
+  portrait: { w: 1080, h: 1350 },
+  square: { w: 1080, h: 1080 },
+};
+let activityCardSizeKey = "portrait";
+try {
+  const savedSize = localStorage.getItem(CARD_SIZE_KEY);
+  if (CARD_SIZES[savedSize]) activityCardSizeKey = savedSize;
+} catch (e) {}
+function cardDims() { return CARD_SIZES[activityCardSizeKey]; }
+
 function defaultActivityCardLayout() {
   return {
     photo: { offsetX: 0, offsetY: 0 }, // pan offset in canvas px, clamped to image overflow
@@ -4024,9 +4182,11 @@ function renderPresetGallery() {
 
     const thumb = document.createElement("div");
     thumb.className = "preset-thumb";
+    const { w: cw, h: ch } = cardDims();
+    const thumbW = 110, thumbH = Math.round(thumbW * (ch / cw));
     const thumbCanvas = document.createElement("canvas");
-    thumbCanvas.width = 220; thumbCanvas.height = 220;
-    thumbCanvas.getContext("2d").drawImage(canvas, 0, 0, 220, 220);
+    thumbCanvas.width = thumbW; thumbCanvas.height = thumbH;
+    thumbCanvas.getContext("2d").drawImage(canvas, 0, 0, thumbW, thumbH);
     const label = document.createElement("div");
     label.className = "preset-name";
     label.textContent = preset.name;
@@ -4055,14 +4215,67 @@ function openActivityCardModal(activityId) {
   updateAiImageUI();
   document.getElementById("presetGallery").classList.add("hidden");
   document.getElementById("presetGallery").innerHTML = "";
-  document.getElementById("showTemplatesBtn").style.display = "none";
+  document.querySelectorAll("#cardSizeSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.size === activityCardSizeKey));
+  closeSheets();
   document.getElementById("activityCardModal").classList.remove("hidden");
-  redrawActivityCardPreview();
-  positionDragBoxes();
+  document.body.style.overflow = "hidden"; // the editor is full-screen; don't let the page scroll behind it
+  requestAnimationFrame(() => {
+    sizeStageToFit();
+    redrawActivityCardPreview();
+    positionDragBoxes();
+  });
 }
 
 function closeActivityCardModal() {
   document.getElementById("activityCardModal").classList.add("hidden");
+  document.body.style.overflow = "";
+  closeSheets();
+}
+
+// ---------- bottom sheets (Background / Data / Style / Layout) ----------
+function openSheet(id) {
+  document.querySelectorAll(".ac-sheet").forEach((sheet) => sheet.classList.toggle("hidden", sheet.id !== id));
+  document.getElementById("acSheetBackdrop").classList.remove("hidden");
+  document.querySelectorAll(".ac-tab").forEach((t) => t.classList.toggle("active", t.dataset.panel === id));
+}
+function closeSheets() {
+  document.querySelectorAll(".ac-sheet").forEach((sheet) => sheet.classList.add("hidden"));
+  document.getElementById("acSheetBackdrop").classList.add("hidden");
+  document.querySelectorAll(".ac-tab").forEach((t) => t.classList.remove("active"));
+}
+
+// ---------- share / download, sharing straight from the phone's share sheet when possible ----------
+function exportCardFilename(activity) {
+  const suffix = activityCardTransparent ? "-overlay" : "";
+  return `strava-dash-${activity.sport}-${activity.id}${suffix}.png`;
+}
+async function shareOrDownloadCard(action) {
+  const activity = loadActivities()[activityCardState.activityId];
+  if (!activity) return;
+  const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout, currentCardStyle(), activityCardState.splits);
+  const filename = exportCardFilename(activity);
+
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
+    if (action === "share" && navigator.share) {
+      try {
+        const file = new File([blob], filename, { type: "image/png" });
+        if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: activity.name || "Activity card" });
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") return; // user cancelled the share sheet — not an error
+        // otherwise fall through to a download so the attempt isn't wasted
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = filename;
+    link.href = url;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }, "image/png");
 }
 
 function getActivityCardSelection() {
@@ -4090,7 +4303,7 @@ function sampleAverageLuminance(ctx, x, y, w, h) {
 
 function drawActivityCard(activity, image, selection, layout, style, splitsData) {
   const canvas = document.createElement("canvas");
-  const W = 1080, H = 1080;
+  const { w: W, h: H } = cardDims(); // reads the card-size switch in the top bar
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
@@ -4375,9 +4588,42 @@ function redrawActivityCardPreview() {
   const selection = getActivityCardSelection();
   const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection, activityCardLayout, currentCardStyle(), activityCardState.splits);
   const previewCanvas = document.getElementById("activityCardPreview");
+  if (previewCanvas.width !== sourceCanvas.width || previewCanvas.height !== sourceCanvas.height) {
+    previewCanvas.width = sourceCanvas.width;
+    previewCanvas.height = sourceCanvas.height;
+  }
   const pctx = previewCanvas.getContext("2d");
   pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
   pctx.drawImage(sourceCanvas, 0, 0);
+}
+
+// Sizes #activityCardStage (which the canvas and every drag-box fill 100%) to
+// the largest box that fits the available screen area while keeping the
+// current card's aspect ratio — the canvas/mobile-editor equivalent of
+// object-fit: contain, computed in JS so drag-box math (which reads the
+// canvas's own bounding rect) always lines up exactly with what's drawn.
+function sizeStageToFit() {
+  const wrap = document.getElementById("acStageWrap");
+  const stage = document.getElementById("activityCardStage");
+  if (!wrap || wrap.clientWidth === 0) return;
+  const { w, h } = cardDims();
+  const ratio = w / h;
+  const availW = Math.max(40, wrap.clientWidth - 4);
+  const availH = Math.max(40, wrap.clientHeight - 4);
+  let stageW = availW, stageH = availW / ratio;
+  if (stageH > availH) { stageH = availH; stageW = availH * ratio; }
+  stage.style.width = `${Math.round(stageW)}px`;
+  stage.style.height = `${Math.round(stageH)}px`;
+}
+
+function switchCardSize(key) {
+  if (!CARD_SIZES[key] || key === activityCardSizeKey) return;
+  activityCardSizeKey = key;
+  try { localStorage.setItem(CARD_SIZE_KEY, key); } catch (e) {}
+  document.querySelectorAll("#cardSizeSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.size === key));
+  sizeStageToFit();
+  redrawActivityCardPreview();
+  positionDragBoxes();
 }
 
 // Syncs the on-screen drag-box outlines (position, size, rotation) with the
@@ -4587,9 +4833,37 @@ function initPhotoPan() {
 
 function initActivityCardModal() {
   document.getElementById("activityCardModalClose").addEventListener("click", closeActivityCardModal);
-  document.getElementById("activityCardModal").addEventListener("click", (e) => {
-    if (e.target.id === "activityCardModal") closeActivityCardModal();
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("activityCardModal").classList.contains("hidden")) {
+      if (!document.getElementById("acSheetBackdrop").classList.contains("hidden")) closeSheets();
+      else closeActivityCardModal();
+    }
   });
+
+  document.querySelectorAll(".ac-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const alreadyOpen = tab.classList.contains("active");
+      closeSheets();
+      if (!alreadyOpen) openSheet(tab.dataset.panel);
+    });
+  });
+  document.getElementById("acSheetBackdrop").addEventListener("click", closeSheets);
+  document.querySelectorAll("[data-close-sheet]").forEach((btn) => btn.addEventListener("click", closeSheets));
+
+  document.querySelectorAll("#cardSizeSwitch button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.size === activityCardSizeKey);
+    btn.addEventListener("click", () => switchCardSize(btn.dataset.size));
+  });
+
+  let resizeTimer = null;
+  const handleViewportChange = () => {
+    if (document.getElementById("activityCardModal").classList.contains("hidden")) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { sizeStageToFit(); positionDragBoxes(); }, 60);
+  };
+  window.addEventListener("resize", handleViewportChange);
+  window.addEventListener("orientationchange", handleViewportChange);
+
   document.getElementById("activityCardImageInput").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -4600,6 +4874,7 @@ function initActivityCardModal() {
         activityCardState.image = img;
         redrawActivityCardPreview();
         renderPresetGallery(); // show templates once, right after a photo is picked
+        openSheet("panelData");
       };
       img.src = reader.result;
     };
@@ -4667,6 +4942,7 @@ function initActivityCardModal() {
       recordAiImageUsage();
       redrawActivityCardPreview();
       renderPresetGallery();
+      openSheet("panelData");
     } catch (err) {
       alert("Couldn't generate an image: " + err.message + ".\n\nThe free service can be busy — this attempt did not use up your daily count, so try again in a minute. For steadier results, add a free Pollinations key in Settings.");
     } finally {
@@ -4674,16 +4950,8 @@ function initActivityCardModal() {
       updateAiImageUI();
     }
   });
-  document.getElementById("activityCardDownloadBtn").addEventListener("click", () => {
-    const activity = loadActivities()[activityCardState.activityId];
-    if (!activity) return;
-    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout, currentCardStyle(), activityCardState.splits);
-    const link = document.createElement("a");
-    const suffix = activityCardTransparent ? "-overlay" : "";
-    link.download = `strava-dash-${activity.sport}-${activity.id}${suffix}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  });
+  document.getElementById("activityCardDownloadBtn").addEventListener("click", () => shareOrDownloadCard("download"));
+  document.getElementById("activityCardShareBtn").addEventListener("click", () => shareOrDownloadCard("share"));
   document.getElementById("resetLayoutBtn").addEventListener("click", () => {
     resetActivityCardStyle();
     positionDragBoxes();

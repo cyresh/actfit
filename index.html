@@ -884,6 +884,8 @@
     letter-spacing:0.04em;
   }
   .milestone-btn:hover .milestone-btn-sub{ color:var(--route); }
+  .milestone-btn.active{ border-color:var(--route); color:var(--route); }
+  .milestone-btn.active .milestone-btn-sub{ color:var(--route); }
 
   .section-title-row{
     display:flex;
@@ -1486,12 +1488,18 @@
 
     <div class="section-title" id="secMilestones" style="margin-bottom:10px;">Milestone stats cards</div>
     <div class="milestone-cards-wrap">
-      <p class="milestone-cards-desc">Pick a milestone to preview a shareable, Strava-style stats card with your count for that distance plus your running volume, this year and all-time. Download it from the preview.</p>
+      <p class="milestone-cards-desc">Pick a milestone to switch the shareable, Strava-style stats card below — your count for that distance plus your running volume, this year and all-time. Download it when it looks right.</p>
       <div class="milestone-btn-row" id="milestoneCardBtnRow">
-        <button class="milestone-btn" data-milestone="k10">10K<span class="milestone-btn-sub">10K RUNS</span></button>
+        <button class="milestone-btn active" data-milestone="k10">10K<span class="milestone-btn-sub">10K RUNS</span></button>
         <button class="milestone-btn" data-milestone="hm">HM<span class="milestone-btn-sub">HALF MARATHON</span></button>
         <button class="milestone-btn" data-milestone="k32">30K<span class="milestone-btn-sub">30K RUNS</span></button>
         <button class="milestone-btn" data-milestone="fm">FM<span class="milestone-btn-sub">FULL MARATHON</span></button>
+      </div>
+      <div style="margin-top:20px;">
+        <div id="milestonePreviewWrap" style="text-align:center;"></div>
+        <div style="display:flex;justify-content:center;margin-top:14px;">
+          <button class="btn btn-primary" id="milestoneDownloadBtn">Download PNG &darr;</button>
+        </div>
       </div>
     </div>
 
@@ -1653,19 +1661,6 @@
     <div class="placeholder-row">
       <span>SESSION</span>
       <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay hidden" id="milestoneModal">
-  <div class="modal-box" style="max-width:420px;">
-    <div class="modal-header">
-      <div class="modal-title" id="milestoneModalTitle">Milestone card</div>
-      <button class="modal-close" data-close-modal="milestoneModal">&times;</button>
-    </div>
-    <div id="milestonePreviewWrap" style="text-align:center;"></div>
-    <div style="display:flex;justify-content:center;margin-top:18px;">
-      <button class="btn btn-primary" id="milestoneDownloadBtn">Download PNG &darr;</button>
     </div>
   </div>
 </div>
@@ -2714,6 +2709,7 @@ function renderDashboard() {
     return;
   }
   dashboard.classList.remove("hidden");
+  showMilestoneCard(milestonePreview.key); // keeps the inline milestone card in step with the data
 
   const list = filteredActivities();
   const emptyDash = document.getElementById("emptyDash");
@@ -4460,30 +4456,34 @@ async function drawMilestoneStatsCard(bucketKey) {
   return canvas;
 }
 
-// Clicking a milestone now opens a preview; the PNG is only saved when Download is pressed.
-const milestonePreview = { canvas: null, key: null };
+// The selected milestone's card is always shown inline under the tiles (10K by default);
+// tapping another tile swaps the card, and the PNG is only saved when Download is pressed.
+const milestonePreview = { canvas: null, key: "k10" };
+let milestoneDrawSeq = 0;
 
-async function openMilestonePreview(bucketKey) {
-  const canvas = await drawMilestoneStatsCard(bucketKey);
-  milestonePreview.canvas = canvas;
+async function showMilestoneCard(bucketKey) {
   milestonePreview.key = bucketKey;
-  canvas.style.cssText = "width:100%;max-width:360px;height:auto;display:block;margin:0 auto;";
-  const wrap = document.getElementById("milestonePreviewWrap");
-  wrap.innerHTML = "";
-  wrap.appendChild(canvas);
-  document.getElementById("milestoneModalTitle").textContent = MILESTONE_CARD_DEFS[bucketKey].full;
-  document.getElementById("milestoneModal").classList.remove("hidden");
+  document.querySelectorAll("#milestoneCardBtnRow .milestone-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.milestone === bucketKey);
+  });
+  const seq = ++milestoneDrawSeq;
+  try {
+    const canvas = await drawMilestoneStatsCard(bucketKey);
+    if (seq !== milestoneDrawSeq) return; // a newer tap already replaced this one
+    milestonePreview.canvas = canvas;
+    canvas.style.cssText = "width:100%;max-width:360px;height:auto;display:block;margin:0 auto;";
+    const wrap = document.getElementById("milestonePreviewWrap");
+    wrap.innerHTML = "";
+    wrap.appendChild(canvas);
+  } catch (e) {
+    console.error("Milestone card failed", e);
+  }
 }
 
-document.getElementById("milestoneCardBtnRow").addEventListener("click", async (e) => {
+document.getElementById("milestoneCardBtnRow").addEventListener("click", (e) => {
   const btn = e.target.closest(".milestone-btn");
   if (!btn) return;
-  btn.disabled = true;
-  try {
-    await openMilestonePreview(btn.dataset.milestone);
-  } finally {
-    btn.disabled = false;
-  }
+  showMilestoneCard(btn.dataset.milestone);
 });
 
 document.getElementById("milestoneDownloadBtn").addEventListener("click", () => {
@@ -5923,11 +5923,11 @@ function initTileIndex() {
   document.querySelectorAll("[data-close-modal]").forEach((b) => {
     b.addEventListener("click", () => closeModalById(b.dataset.closeModal));
   });
-  ["syncModal", "settingsModal", "milestoneModal"].forEach((id) => {
+  ["syncModal", "settingsModal"].forEach((id) => {
     document.getElementById(id).addEventListener("click", (e) => { if (e.target.id === id) closeModalById(id); });
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") ["syncModal", "settingsModal", "milestoneModal"].forEach(closeModalById);
+    if (e.key === "Escape") ["syncModal", "settingsModal"].forEach(closeModalById);
   });
   document.getElementById("disconnectBtn").addEventListener("click", () => closeModalById("syncModal"));
 

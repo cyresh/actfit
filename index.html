@@ -378,6 +378,27 @@
   .opt-row input{ width:auto; margin-top:3px; accent-color:var(--route); }
   .opt-row strong{ display:block; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--chalk); }
   .opt-row em{ display:block; font-style:normal; font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4; }
+  .tile-order-reset{
+    background:none; border:none; color:var(--route); cursor:pointer;
+    font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.06em;
+    padding:4px 2px;
+  }
+  .tile-order-row{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 4px; border-bottom:1px solid var(--line);
+  }
+  .tile-order-row:last-child{ border-bottom:none; }
+  .tile-order-icon{ font-size:17px; width:22px; text-align:center; flex-shrink:0; }
+  .tile-order-name{
+    flex:1; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--chalk);
+    text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .tile-order-btn{
+    width:34px; height:34px; border-radius:6px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--chalk); font-size:15px; line-height:1;
+    cursor:pointer; -webkit-tap-highlight-color:transparent; flex-shrink:0;
+  }
+  .tile-order-btn:disabled{ opacity:0.3; cursor:default; }
   .to-index-btn{
     position:fixed;
     right:16px;
@@ -1309,22 +1330,22 @@
   <!-- ============ STAGE 3: OVERVIEW DASHBOARD ============ -->
   <div class="dashboard hidden" id="dashboard">
     <nav class="tile-index" id="tileIndex" aria-label="Sections">
-      <button class="tile" data-action="sync"><span class="tile-icon">🔄</span>Sync &amp; session</button>
-      <button class="tile" data-target="filterBar" data-sec="secOverview"><span class="tile-icon">📊</span>Overview</button>
-      <button class="tile" data-target="secVolume"><span class="tile-icon">📈</span>Weekly volume</button>
-      <button class="tile" data-target="secPace"><span class="tile-icon">⏱️</span>Pace trend</button>
-      <button class="tile" data-target="secCalendar"><span class="tile-icon">🗓️</span>Calendar</button>
-      <button class="tile" data-target="secRideYear"><span class="tile-icon">🚴</span>Ride stats</button>
-      <button class="tile" data-target="secRunYear"><span class="tile-icon">🏃</span>Run stats</button>
-      <button class="tile" data-target="secSplits"><span class="tile-icon">⚡</span>Fastest splits</button>
-      <button class="tile" data-target="secMilestones"><span class="tile-icon">🏅</span>Milestones</button>
-      <button class="tile" data-target="secBreakdown"><span class="tile-icon">📉</span>Breakdown</button>
-      <button class="tile" data-target="secActiveDays"><span class="tile-icon">✅</span>Active days</button>
-      <button class="tile" data-target="secActivities"><span class="tile-icon">📋</span>Activities</button>
-      <button class="tile" data-target="secPRs"><span class="tile-icon">🏆</span>Personal records</button>
-      <button class="tile" data-target="secRoutes"><span class="tile-icon">🗺️</span>All routes</button>
-      <button class="tile" data-target="secSegments"><span class="tile-icon">⛰️</span>Segments</button>
-      <button class="tile" data-action="settings"><span class="tile-icon">⚙️</span>Settings</button>
+      <button class="tile" data-id="sync" data-action="sync"><span class="tile-icon">🔄</span>Sync &amp; session</button>
+      <button class="tile" data-id="overview" data-target="filterBar" data-sec="secOverview"><span class="tile-icon">📊</span>Overview</button>
+      <button class="tile" data-id="volume" data-target="secVolume"><span class="tile-icon">📈</span>Weekly volume</button>
+      <button class="tile" data-id="pace" data-target="secPace"><span class="tile-icon">⏱️</span>Pace trend</button>
+      <button class="tile" data-id="calendar" data-target="secCalendar"><span class="tile-icon">🗓️</span>Calendar</button>
+      <button class="tile" data-id="rideYear" data-target="secRideYear"><span class="tile-icon">🚴</span>Ride stats</button>
+      <button class="tile" data-id="runYear" data-target="secRunYear"><span class="tile-icon">🏃</span>Run stats</button>
+      <button class="tile" data-id="splits" data-target="secSplits"><span class="tile-icon">⚡</span>Fastest splits</button>
+      <button class="tile" data-id="milestones" data-target="secMilestones"><span class="tile-icon">🏅</span>Milestones</button>
+      <button class="tile" data-id="breakdown" data-target="secBreakdown"><span class="tile-icon">📉</span>Breakdown</button>
+      <button class="tile" data-id="activeDays" data-target="secActiveDays"><span class="tile-icon">✅</span>Active days</button>
+      <button class="tile" data-id="activities" data-target="secActivities"><span class="tile-icon">📋</span>Activities</button>
+      <button class="tile" data-id="prs" data-target="secPRs"><span class="tile-icon">🏆</span>Personal records</button>
+      <button class="tile" data-id="routes" data-target="secRoutes"><span class="tile-icon">🗺️</span>All routes</button>
+      <button class="tile" data-id="segments" data-target="secSegments"><span class="tile-icon">⛰️</span>Segments</button>
+      <button class="tile" data-id="settings" data-action="settings"><span class="tile-icon">⚙️</span>Settings</button>
     </nav>
     <p class="single-hint" id="singleHint" style="display:none;">Single-view mode: tap a tile to show only that section.</p>
 
@@ -1585,6 +1606,13 @@
     <div class="setting-group-title" style="margin-top:22px;">AI images (optional)</div>
     <input type="text" id="polliKeyInput" placeholder="Your personal Pollinations key" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px;">
     <p class="ai-image-note">Generating from text alone works without a key, though the free anonymous tier can be busy. To let AI actually edit a photo you upload, add your own free key from <a href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener" style="color:var(--route);">enter.pollinations.ai/keys</a> — it's stored only on this device and used only for your own requests, never shared.</p>
+
+    <div class="setting-group-title" style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;">
+      <span>Tile order</span>
+      <button class="tile-order-reset" id="tileOrderResetBtn" type="button">Reset</button>
+    </div>
+    <p class="ai-image-note" style="margin-top:6px;">Use the arrows to put the tiles you use most at the top.</p>
+    <div id="tileOrderList"></div>
   </div>
 </div>
 
@@ -5469,11 +5497,63 @@ function refreshAfterReveal() {
   });
 }
 
+// ---------- tile order (Settings \u2192 "Tile order") ----------
+const TILE_ORDER_KEY = "strava_dash_tile_order";
+// Fixed, so "Reset" always has a real default to go back to \u2014 never derived
+// from the current (possibly already reordered) DOM.
+const DEFAULT_TILE_ORDER = ["sync", "overview", "volume", "pace", "calendar", "rideYear", "runYear", "splits", "milestones", "breakdown", "activeDays", "activities", "prs", "routes", "segments", "settings"];
+function getDefaultTileOrder() {
+  const present = new Set(Array.from(document.querySelectorAll("#tileIndex .tile")).map((t) => t.dataset.id));
+  return DEFAULT_TILE_ORDER.filter((id) => present.has(id));
+}
+function loadTileOrder() {
+  const defaultOrder = getDefaultTileOrder();
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem(TILE_ORDER_KEY) || "[]"); } catch (e) {}
+  const defaultSet = new Set(defaultOrder);
+  const kept = saved.filter((id) => defaultSet.has(id));
+  const missing = defaultOrder.filter((id) => !kept.includes(id)); // covers first run and any tiles added since
+  return kept.concat(missing);
+}
+function saveTileOrder(order) {
+  try { localStorage.setItem(TILE_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+}
+function applyTileOrder(order) {
+  const nav = document.getElementById("tileIndex");
+  const tiles = new Map(Array.from(nav.querySelectorAll(".tile")).map((t) => [t.dataset.id, t]));
+  order.forEach((id) => { const t = tiles.get(id); if (t) nav.appendChild(t); });
+}
+function renderTileOrderSettings() {
+  const order = loadTileOrder();
+  const list = document.getElementById("tileOrderList");
+  list.innerHTML = "";
+  order.forEach((id, i) => {
+    const tile = document.querySelector(`#tileIndex .tile[data-id="${id}"]`);
+    if (!tile) return;
+    const row = document.createElement("div");
+    row.className = "tile-order-row";
+    row.innerHTML = `<span class="tile-order-icon">${tile.querySelector(".tile-icon").textContent}</span><span class="tile-order-name">${tile.textContent.trim()}</span><button class="tile-order-btn" data-dir="up" ${i === 0 ? "disabled" : ""} aria-label="Move up">\u2191</button><button class="tile-order-btn" data-dir="down" ${i === order.length - 1 ? "disabled" : ""} aria-label="Move down">\u2193</button>`;
+    row.querySelectorAll(".tile-order-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dir = btn.dataset.dir === "up" ? -1 : 1;
+        const j = i + dir;
+        if (j < 0 || j >= order.length) return;
+        [order[i], order[j]] = [order[j], order[i]];
+        saveTileOrder(order);
+        applyTileOrder(order);
+        renderTileOrderSettings();
+      });
+    });
+    list.appendChild(row);
+  });
+}
+
 function syncSettingsUI() {
   document.querySelectorAll('input[name="viewMode"]').forEach((r) => {
     r.checked = r.value === viewState.mode;
     r.closest(".opt-row").classList.toggle("selected", r.checked);
   });
+  renderTileOrderSettings();
 }
 
 // The Sync modal mirrors the main "Sync now" row so both always show the same state.
@@ -5495,9 +5575,17 @@ function initSyncMirror() {
 function initTileIndex() {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const smooth = reduce ? "auto" : "smooth";
+  applyTileOrder(loadTileOrder());
   tagDashboardSections();
   applyViewMode();
   initSyncMirror();
+
+  document.getElementById("tileOrderResetBtn").addEventListener("click", () => {
+    const order = getDefaultTileOrder();
+    saveTileOrder(order);
+    applyTileOrder(order);
+    renderTileOrderSettings();
+  });
 
   document.querySelectorAll("#tileIndex .tile").forEach((tile) => {
     tile.addEventListener("click", () => {

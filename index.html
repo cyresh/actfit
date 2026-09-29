@@ -425,6 +425,7 @@
     gap:24px;
     margin-bottom:24px;
   }
+  .filter-bar.section-filter{ margin-bottom:14px; }
   .segmented{
     display:inline-flex;
     border:1px solid var(--line);
@@ -1389,6 +1390,13 @@
     <p class="empty-dash hidden" id="emptyDash">No activities in this range yet — try a wider filter, or hit Sync.</p>
 
     <div class="section-title" id="secVolume">Weekly volume — last 12 weeks</div>
+    <div class="filter-bar section-filter">
+      <div class="segmented" data-section-sport="volume">
+        <button data-sport="all" class="active">All</button>
+        <button data-sport="run">Run</button>
+        <button data-sport="ride">Ride</button>
+      </div>
+    </div>
     <div class="chart-card">
       <canvas id="volumeChart" height="220"></canvas>
     </div>
@@ -1408,6 +1416,13 @@
     </div>
 
     <div class="section-title" id="secCalendar">Activity calendar — last 12 months</div>
+    <div class="filter-bar section-filter">
+      <div class="segmented" data-section-sport="calendar">
+        <button data-sport="all" class="active">All</button>
+        <button data-sport="run">Run</button>
+        <button data-sport="ride">Ride</button>
+      </div>
+    </div>
     <div class="chart-card">
       <div class="heatmap-outer">
         <div class="heatmap-daylabels" id="heatmapDayLabels"></div>
@@ -1448,7 +1463,7 @@
 
     <div class="section-title" id="secMilestones" style="margin-bottom:10px;">Milestone stats cards</div>
     <div class="milestone-cards-wrap">
-      <p class="milestone-cards-desc">Pick a milestone to generate a shareable, Strava-style stats card (PNG) with your count for that distance plus your running volume, this year and all-time.</p>
+      <p class="milestone-cards-desc">Pick a milestone to preview a shareable, Strava-style stats card with your count for that distance plus your running volume, this year and all-time. Download it from the preview.</p>
       <div class="milestone-btn-row" id="milestoneCardBtnRow">
         <button class="milestone-btn" data-milestone="k10">10K<span class="milestone-btn-sub">10K RUNS</span></button>
         <button class="milestone-btn" data-milestone="hm">HM<span class="milestone-btn-sub">HALF MARATHON</span></button>
@@ -1462,6 +1477,13 @@
       <div class="segmented" id="granularityFilter">
         <button data-gran="monthly" class="active">Monthly</button>
         <button data-gran="yearly">Yearly</button>
+      </div>
+    </div>
+    <div class="filter-bar section-filter">
+      <div class="segmented" data-section-sport="breakdown">
+        <button data-sport="all" class="active">All</button>
+        <button data-sport="run">Run</button>
+        <button data-sport="ride">Ride</button>
       </div>
     </div>
     <div id="rideBreakdownWrap">
@@ -1521,6 +1543,13 @@
     </div>
 
     <div class="section-title" id="secPRs">Personal records</div>
+    <div class="filter-bar section-filter">
+      <div class="segmented" data-section-sport="prs">
+        <button data-sport="all" class="active">All</button>
+        <button data-sport="run">Run</button>
+        <button data-sport="ride">Ride</button>
+      </div>
+    </div>
     <div class="pr-grid" id="prGrid"></div>
 
     <div class="section-title" id="secRoutes">All routes</div>
@@ -1534,10 +1563,10 @@
         <button class="btn btn-ghost" id="resetMapBtn" style="padding:8px 16px;font-size:12px;">Reset view</button>
       </div>
       <div id="routeMap"></div>
-      <p class="map-note">Tiles load from OpenStreetMap/CARTO/Esri over the network — routes are decoded and drawn from your cached data either way. Use the layers control (top right of the map) to switch to satellite view.</p>
+      <p class="map-note">Tiles load from OpenStreetMap/CARTO/Esri over the network — routes are decoded and drawn from your cached data either way. Satellite view is the default; use the layers control (top right of the map) to switch base maps.</p>
     </div>
 
-    <div class="section-title" id="secSegments">Starred segments</div>
+    <div class="section-title" id="secSegments">Segments</div>
     <div class="activities-controls">
       <span class="activities-count" id="segmentsCount"></span>
     </div>
@@ -1555,11 +1584,11 @@
           </tr>
         </thead>
         <tbody id="segmentsTableBody">
-          <tr><td colspan="7" style="text-align:center;color:var(--muted);">No starred segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="map-note">Rank only shows for Strava subscribers — Strava doesn't expose it for free accounts via the API.</p>
+    <p class="map-note">Every segment you have attempted, with your attempt count and best time, tallied from your synced activities (★ = starred). For starred segments the larger of Strava's own attempt count and the tally is shown. Rank only shows for starred segments and only for Strava subscribers — Strava doesn't expose it for free accounts via the API.</p>
   </div>
 
 <div class="modal-overlay hidden" id="syncModal">
@@ -1583,13 +1612,26 @@
     </div>
     <div class="divider"></div>
     <div class="placeholder-row">
-      <span id="segmentsStatusText">STARRED SEGMENTS</span>
+      <span id="segmentsStatusText">SEGMENTS (ALL ATTEMPTED)</span>
       <button class="btn btn-ghost" id="segmentsBtn">Fetch segments</button>
     </div>
     <div class="divider"></div>
     <div class="placeholder-row">
       <span>SESSION</span>
       <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="milestoneModal">
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="milestoneModalTitle">Milestone card</div>
+      <button class="modal-close" data-close-modal="milestoneModal">&times;</button>
+    </div>
+    <div id="milestonePreviewWrap" style="text-align:center;"></div>
+    <div style="display:flex;justify-content:center;margin-top:18px;">
+      <button class="btn btn-primary" id="milestoneDownloadBtn">Download PNG &darr;</button>
     </div>
   </div>
 </div>
@@ -1802,25 +1844,25 @@
       <p class="ai-image-note" style="margin-top:0;">Fine-tune rotation here, or twist a box's green dot right on the preview.</p>
       <label>Title rotation</label>
       <div class="control-row">
-        <input type="range" id="titleRotationSlider" min="-45" max="45" value="0">
+        <input type="range" id="titleRotationSlider" min="-90" max="90" value="0">
         <span class="mini-range-value" id="titleRotationValue">0°</span>
       </div>
 
       <label>Stats rotation</label>
       <div class="control-row">
-        <input type="range" id="statsRotationSlider" min="-45" max="45" value="0">
+        <input type="range" id="statsRotationSlider" min="-90" max="90" value="0">
         <span class="mini-range-value" id="statsRotationValue">0°</span>
       </div>
 
       <label>Route rotation</label>
       <div class="control-row">
-        <input type="range" id="routeRotationSlider" min="-45" max="45" value="0">
+        <input type="range" id="routeRotationSlider" min="-90" max="90" value="0">
         <span class="mini-range-value" id="routeRotationValue">0°</span>
       </div>
 
       <label>Splits rotation</label>
       <div class="control-row">
-        <input type="range" id="splitsRotationSlider" min="-45" max="45" value="0">
+        <input type="range" id="splitsRotationSlider" min="-90" max="90" value="0">
         <span class="mini-range-value" id="splitsRotationValue">0°</span>
       </div>
     </div>
@@ -1846,7 +1888,9 @@ const BEST_EFFORTS_DONE_KEY = "strava_dash_best_efforts_done"; // array of activ
 const ACTIVITY_SPLITS_KEY = "strava_dash_activity_splits"; // { [activityId]: [{split, distance, moving_time, elapsed_time, elevation_difference, average_speed}] }
 const AI_IMAGE_USAGE_KEY = "strava_dash_ai_image_usage"; // { date: "YYYY-MM-DD", count: N }
 const AI_IMAGE_DAILY_LIMIT = 2; // self-imposed cap, keyed to this device/browser, to stay respectful of the free image service
-const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + athlete stats} }
+const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + athlete stats} } — starred segments only
+const SEGMENT_EFFORTS_KEY = "strava_dash_segment_efforts"; // { [segmentId]: {id, name, activity_type, distance, average_grade, starred, attempts, best_time, best_date, last_date} } — every segment you have attempted, aggregated from your activities
+const SEGMENT_SCAN_DONE_KEY = "strava_dash_segment_scan_done"; // array of activity ids already scanned for segment efforts (resumable)
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 const RIDE_TYPES = new Set(["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]);
@@ -2094,6 +2138,20 @@ function loadSegments() {
 function saveSegments(obj) {
   localStorage.setItem(SEGMENTS_KEY, JSON.stringify(obj));
 }
+function loadSegmentEfforts() {
+  const raw = localStorage.getItem(SEGMENT_EFFORTS_KEY);
+  return raw ? JSON.parse(raw) : {};
+}
+function saveSegmentEfforts(obj) {
+  localStorage.setItem(SEGMENT_EFFORTS_KEY, JSON.stringify(obj));
+}
+function loadSegmentScanDone() {
+  const raw = localStorage.getItem(SEGMENT_SCAN_DONE_KEY);
+  return raw ? new Set(JSON.parse(raw)) : new Set();
+}
+function saveSegmentScanDone(set) {
+  localStorage.setItem(SEGMENT_SCAN_DONE_KEY, JSON.stringify(Array.from(set)));
+}
 
 /* =========================================================
    OAuth: kick off connect flow
@@ -2271,15 +2329,15 @@ async function syncActivities(onProgress, forceFullResync = false) {
    ========================================================= */
 let bestEffortsStopRequested = false;
 
-async function fetchActivityDetail(accessToken, id, onProgress) {
-  const res = await fetch(`https://www.strava.com/api/v3/activities/${id}`, {
+async function fetchActivityDetail(accessToken, id, onProgress, query = "") {
+  const res = await fetch(`https://www.strava.com/api/v3/activities/${id}${query}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (res.status === 429) {
     const retryAfter = parseInt(res.headers.get("Retry-After") || "900", 10);
     onProgress?.(`Rate limit reached — waiting ${Math.ceil(retryAfter / 60)} min before continuing (progress is saved, safe to leave this tab open)…`);
     await sleep(retryAfter * 1000);
-    return fetchActivityDetail(accessToken, id, onProgress);
+    return fetchActivityDetail(accessToken, id, onProgress, query);
   }
   if (!res.ok) throw new Error(`Activity detail fetch failed (id ${id}): ${res.status}`);
   return res.json();
@@ -2404,6 +2462,67 @@ async function fetchStarredSegments(onProgress) {
 }
 
 /* =========================================================
+   All attempted segments — Strava has no "every segment I've
+   ridden/run" endpoint, so this reads each cached activity's
+   detail (include_all_efforts=true) and tallies its segment
+   efforts per segment. Resumable: scanned activity ids are
+   remembered, so stopping partway (or hitting the rate limit)
+   and clicking again continues where it left off, and later
+   syncs only scan the new activities.
+   ========================================================= */
+async function scanSegmentEfforts(onProgress, onTick) {
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error("Not connected");
+
+  const acts = Object.values(loadActivities());
+  const done = loadSegmentScanDone();
+  const pending = acts
+    .filter((a) => !done.has(a.id))
+    .sort((a, b) => new Date(b.start_date_local) - new Date(a.start_date_local)); // newest first
+  const agg = loadSegmentEfforts();
+
+  for (const act of pending) {
+    if (segmentsStopRequested) break;
+    onProgress?.(`Scanning activities for segments… ${done.size}/${acts.length}`);
+    const detail = await fetchActivityDetail(accessToken, act.id, onProgress, "?include_all_efforts=true");
+
+    for (const ef of detail.segment_efforts || []) {
+      const seg = ef.segment;
+      if (!seg || seg.id == null) continue;
+      const when = ef.start_date_local || act.start_date_local;
+      const r = agg[seg.id] || (agg[seg.id] = {
+        id: seg.id, name: seg.name, activity_type: seg.activity_type, distance: seg.distance,
+        average_grade: seg.average_grade, starred: false, attempts: 0, best_time: null, best_date: null, last_date: null,
+      });
+      r.name = seg.name;
+      r.activity_type = seg.activity_type;
+      r.distance = seg.distance;
+      r.average_grade = seg.average_grade;
+      r.starred = Boolean(seg.starred);
+      r.attempts++;
+      if (ef.elapsed_time != null && (r.best_time == null || ef.elapsed_time < r.best_time)) {
+        r.best_time = ef.elapsed_time;
+        r.best_date = when;
+      }
+      if (!r.last_date || when > r.last_date) r.last_date = when;
+    }
+    done.add(act.id);
+
+    // save after every activity so a closed tab loses at most the one in-flight request,
+    // and the tally + scanned-set can never disagree (which would double count on resume)
+    saveSegmentEfforts(agg);
+    saveSegmentScanDone(done);
+    if (done.size % 10 === 0) onTick?.();
+
+    await sleep(200); // the 429 handler in fetchActivityDetail covers the rest
+  }
+
+  saveSegmentEfforts(agg);
+  saveSegmentScanDone(done);
+  return { totalActivities: acts.length, done: done.size, stopped: segmentsStopRequested };
+}
+
+/* =========================================================
    UI state
    ========================================================= */
 function showLanding(errorMsg) {
@@ -2437,10 +2556,7 @@ function showConnected(athlete) {
   }
 
   renderSegmentsTable();
-  const segCount = Object.keys(loadSegments()).length;
-  if (segCount > 0) {
-    document.getElementById("segmentsStatusText").textContent = `${segCount} STARRED SEGMENTS`;
-  }
+  refreshSegmentsStatus();
 }
 
 function refreshStatsFromCache() {
@@ -2510,7 +2626,9 @@ async function runSync(forceFullResync = false) {
 /* =========================================================
    Stage 3: overview dashboard
    ========================================================= */
-const dashState = { sport: "all", range: "all" };
+const dashState = { sport: "all", range: "all" }; // Overview section only (its own sport + range filter)
+// Each of these sections has its own independent All / Run / Ride filter, shown inside the section.
+const sectionSport = { volume: "all", calendar: "all", breakdown: "all", prs: "all" };
 
 function rangeStartDate(range) {
   const now = new Date();
@@ -2603,6 +2721,19 @@ function initDashboardFilters() {
       renderDashboard();
     });
   });
+  // independent per-section sport filters — each re-renders only its own section
+  const sectionRenderers = { volume: renderTrendCharts, calendar: renderHeatmap, breakdown: renderBreakdownCharts, prs: renderPRs };
+  document.querySelectorAll("[data-section-sport]").forEach((group) => {
+    const key = group.dataset.sectionSport;
+    group.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        group.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        sectionSport[key] = btn.dataset.sport;
+        sectionRenderers[key]();
+      });
+    });
+  });
 }
 
 /* =========================================================
@@ -2638,7 +2769,7 @@ function renderTrendCharts() {
   if (typeof Chart === "undefined") return; // CDN blocked/offline — fail quietly
 
   const sportFiltered = Object.values(loadActivities()).filter(
-    (a) => dashState.sport === "all" || a.sport === dashState.sport
+    (a) => sectionSport.volume === "all" || a.sport === sectionSport.volume
   );
 
   const buckets = last12WeekBuckets();
@@ -2858,7 +2989,7 @@ function renderHeatmap() {
   }
 
   const sportFiltered = Object.values(loadActivities()).filter(
-    (a) => dashState.sport === "all" || a.sport === dashState.sport
+    (a) => sectionSport.calendar === "all" || a.sport === sectionSport.calendar
   );
 
   const byDay = {};
@@ -3010,8 +3141,8 @@ function renderBreakdownCharts() {
   const rides = all.filter((a) => a.sport === "ride");
   const runs = all.filter((a) => a.sport === "run");
 
-  const showRide = dashState.sport === "all" || dashState.sport === "ride";
-  const showRun = dashState.sport === "all" || dashState.sport === "run";
+  const showRide = sectionSport.breakdown === "all" || sectionSport.breakdown === "ride";
+  const showRun = sectionSport.breakdown === "all" || sectionSport.breakdown === "run";
   document.getElementById("rideBreakdownWrap").classList.toggle("hidden", !showRide);
   document.getElementById("runBreakdownWrap").classList.toggle("hidden", !showRun);
 
@@ -3403,15 +3534,44 @@ function renderRunSplitsTable() {
    Segments table (sortable, click headers — same pattern as
    the activities list)
    ========================================================= */
-const segmentListState = { sortField: "star_count", sortDir: "desc" };
+const segmentListState = { sortField: "effort_count", sortDir: "desc" };
+
+// Merges the starred-segment stats (Strava's own PR/attempt numbers + rank) with the
+// per-activity tally of every segment attempted, into one row per segment id.
+function getSegmentRows() {
+  const starred = loadSegments();
+  const efforts = loadSegmentEfforts();
+  const ids = new Set([...Object.keys(starred), ...Object.keys(efforts)]);
+  return Array.from(ids).map((id) => {
+    const s = starred[id] || null;
+    const e = efforts[id] || null;
+    const counts = [s?.effort_count, e?.attempts].filter((n) => n != null);
+    const times = [s?.pr_elapsed_time, e?.best_time].filter((n) => n != null);
+    return {
+      id,
+      name: s?.name ?? e?.name ?? `Segment ${id}`,
+      activity_type: s?.activity_type ?? e?.activity_type ?? null,
+      distance: s?.distance ?? e?.distance ?? 0,
+      average_grade: s?.average_grade ?? e?.average_grade ?? null,
+      pr_elapsed_time: times.length ? Math.min(...times) : null,
+      effort_count: counts.length ? Math.max(...counts) : null,
+      pr_rank: s?.pr_rank ?? null,
+      starred: Boolean(s) || Boolean(e?.starred),
+    };
+  });
+}
+
+function segEscape(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 function renderSegmentsTable() {
-  const segments = Object.values(loadSegments());
+  const segments = getSegmentRows();
   const tbody = document.getElementById("segmentsTableBody");
   const countEl = document.getElementById("segmentsCount");
 
   if (segments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No starred segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>`;
     countEl.textContent = "";
     return;
   }
@@ -3438,8 +3598,10 @@ function renderSegmentsTable() {
     const prTime = s.pr_elapsed_time != null ? formatSplitTime(s.pr_elapsed_time) : "—";
     const attempts = s.effort_count != null ? s.effort_count : "—";
     const rank = s.pr_rank != null ? `#${s.pr_rank}` : "—";
+    const name = segEscape(s.name);
+    const star = s.starred ? `<span title="Starred" style="color:var(--route);">★</span> ` : "";
     return `<tr>
-      <td title="${s.name}"><a href="https://www.strava.com/segments/${s.id}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-color:var(--line);">${s.name}</a></td>
+      <td title="${name}">${star}<a href="https://www.strava.com/segments/${s.id}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-color:var(--line);">${name}</a></td>
       <td>${s.activity_type || "—"}</td>
       <td>${distKm} km</td>
       <td>${grade}</td>
@@ -3449,7 +3611,8 @@ function renderSegmentsTable() {
     </tr>`;
   }).join("");
 
-  countEl.textContent = `${sorted.length} starred segments`;
+  const starredCount = sorted.filter((s) => s.starred).length;
+  countEl.textContent = `${sorted.length} segments attempted · ${starredCount} starred`;
 }
 
 function initSegmentsControls() {
@@ -3467,6 +3630,21 @@ function initSegmentsControls() {
   });
 }
 
+// Status line + button label for the segments row of the Sync modal.
+function refreshSegmentsStatus() {
+  const statusText = document.getElementById("segmentsStatusText");
+  const btn = document.getElementById("segmentsBtn");
+  const totalActs = Object.keys(loadActivities()).length;
+  const scanned = loadSegmentScanDone().size;
+  const segCount = getSegmentRows().length;
+  if (scanned > 0 && scanned < totalActs) {
+    statusText.textContent = `SEGMENTS — ${scanned}/${totalActs} activities scanned, ${segCount} found`;
+    if (btn.dataset.running !== "true") btn.textContent = "Resume segments";
+  } else if (segCount > 0) {
+    statusText.textContent = `${segCount} SEGMENTS ATTEMPTED`;
+  }
+}
+
 async function runFetchSegments() {
   const btn = document.getElementById("segmentsBtn");
   const statusText = document.getElementById("segmentsStatusText");
@@ -3480,28 +3658,38 @@ async function runFetchSegments() {
 
   btn.dataset.running = "true";
   btn.textContent = "Stop";
+  const showMsg = (msg) => { statusText.innerHTML = `<span class="spinner"></span>${msg}`; };
 
   try {
-    const result = await fetchStarredSegments((msg) => {
-      statusText.innerHTML = `<span class="spinner"></span>${msg}`;
-    });
-    statusText.textContent = result.stopped
-      ? `PAUSED — ${result.done}/${result.total} segments done`
-      : `DONE — ${result.done} starred segments fetched`;
+    // 1) starred segments — Strava's own PR time, attempt count and (subscribers) rank
+    const starredRes = await fetchStarredSegments(showMsg);
     renderSegmentsTable();
+
+    // 2) every attempted segment, tallied from activity details (skipped if Stop was pressed)
+    if (!starredRes.stopped) {
+      const scanRes = await scanSegmentEfforts(showMsg, renderSegmentsTable);
+      renderSegmentsTable();
+      statusText.textContent = scanRes.stopped
+        ? `PAUSED — ${scanRes.done}/${scanRes.totalActivities} activities scanned`
+        : `DONE — ${getSegmentRows().length} segments from ${scanRes.totalActivities} activities`;
+    } else {
+      statusText.textContent = `PAUSED — ${starredRes.done}/${starredRes.total} starred segments done`;
+    }
   } catch (e) {
     statusText.textContent = "Segment fetch failed — check connection and try again";
   } finally {
     btn.dataset.running = "false";
     btn.disabled = false;
     btn.textContent = "Fetch segments";
+    renderSegmentsTable();
+    if (/PAUSED|failed/.test(statusText.textContent)) refreshSegmentsStatus();
   }
 }
 
 function renderPRs() {
   const grid = document.getElementById("prGrid");
   const sportFiltered = Object.values(loadActivities()).filter(
-    (a) => dashState.sport === "all" || a.sport === dashState.sport
+    (a) => sectionSport.prs === "all" || a.sport === sectionSport.prs
   );
   grid.innerHTML = "";
 
@@ -3623,8 +3811,9 @@ function renderRouteMap() {
       maxZoom: 19,
     });
 
-    darkLayer.addTo(routeMapInstance);
-    L.control.layers({ "Dark": darkLayer, "Satellite": satelliteLayer }, {}, { position: "topright" }).addTo(routeMapInstance);
+    // Satellite is the default base map (the CARTO dark tiles now return an "API key required" watermark)
+    satelliteLayer.addTo(routeMapInstance);
+    L.control.layers({ "Satellite": satelliteLayer, "Dark": darkLayer }, {}, { position: "topright" }).addTo(routeMapInstance);
   }
 
   // clear previous route layers (keep the tile layers)
@@ -4194,9 +4383,19 @@ async function drawMilestoneStatsCard(bucketKey) {
   return canvas;
 }
 
-async function downloadMilestoneStatsCard(bucketKey) {
+// Clicking a milestone now opens a preview; the PNG is only saved when Download is pressed.
+const milestonePreview = { canvas: null, key: null };
+
+async function openMilestonePreview(bucketKey) {
   const canvas = await drawMilestoneStatsCard(bucketKey);
-  downloadCanvas(canvas, `strava-${bucketKey}-stats-card.png`);
+  milestonePreview.canvas = canvas;
+  milestonePreview.key = bucketKey;
+  canvas.style.cssText = "width:100%;max-width:360px;height:auto;display:block;margin:0 auto;";
+  const wrap = document.getElementById("milestonePreviewWrap");
+  wrap.innerHTML = "";
+  wrap.appendChild(canvas);
+  document.getElementById("milestoneModalTitle").textContent = MILESTONE_CARD_DEFS[bucketKey].full;
+  document.getElementById("milestoneModal").classList.remove("hidden");
 }
 
 document.getElementById("milestoneCardBtnRow").addEventListener("click", async (e) => {
@@ -4204,10 +4403,15 @@ document.getElementById("milestoneCardBtnRow").addEventListener("click", async (
   if (!btn) return;
   btn.disabled = true;
   try {
-    await downloadMilestoneStatsCard(btn.dataset.milestone);
+    await openMilestonePreview(btn.dataset.milestone);
   } finally {
     btn.disabled = false;
   }
+});
+
+document.getElementById("milestoneDownloadBtn").addEventListener("click", () => {
+  if (!milestonePreview.canvas) return;
+  downloadCanvas(milestonePreview.canvas, `strava-${milestonePreview.key}-stats-card.png`);
 });
 
 /* =========================================================
@@ -5002,8 +5206,12 @@ function initRotateHandle(rotateHandleId, boxId, getLayout, sliderId, valueId) {
     const rect = box.getBoundingClientRect();
     const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
     const angle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
-    let rotation = startRotation + (angle - startAngle);
-    rotation = Math.min(Math.max(rotation, -45), 45);
+    // normalise the angle delta to (-180, 180] so crossing the atan2 seam doesn't make the box jump
+    let delta = angle - startAngle;
+    while (delta > 180) delta -= 360;
+    while (delta <= -180) delta += 360;
+    let rotation = startRotation + delta;
+    rotation = Math.min(Math.max(rotation, -90), 90);
     getLayout().rotation = rotation;
     document.getElementById(sliderId).value = Math.round(rotation);
     document.getElementById(valueId).textContent = `${Math.round(rotation)}°`;
@@ -5462,10 +5670,10 @@ function tagDashboardSections() {
   const skip = new Set(["tileIndex", "singleHint"]);
   const starts = new Set(["secOverview", "secVolume", "secPace", "secCalendar", "secRideYear", "secRunYear",
     "secSplits", "secMilestones", "secBreakdown", "secActiveDays", "secActivities", "secPRs", "secRoutes", "secSegments"]);
-  let current = "filters";
+  let current = "secOverview";
   Array.from(dash.children).forEach((el) => {
     if (skip.has(el.id)) return;
-    if (el.classList.contains("filter-bar")) current = "filters";
+    if (el.id === "filterBar") current = "secOverview"; // Overview's own sport + range bar leads the Overview section
     else if (starts.has(el.id)) current = el.id;
     el.dataset.sec = current;
   });
@@ -5477,7 +5685,7 @@ function applyViewMode() {
   const active = single ? viewState.active : null;
   dash.querySelectorAll(":scope > [data-sec]").forEach((el) => {
     const sec = el.dataset.sec;
-    const show = !single || Boolean(active && (sec === "filters" || sec === active));
+    const show = !single || Boolean(active && sec === active);
     el.classList.toggle("sec-hidden", !show);
   });
   document.querySelectorAll("#tileIndex .tile[data-target]").forEach((t) => {
@@ -5599,7 +5807,9 @@ function initTileIndex() {
         applyViewMode();
         if (viewState.active) {
           refreshAfterReveal();
-          document.getElementById("filterBar").scrollIntoView({ behavior: "auto", block: "start" });
+          // filter bar may now be hidden for this section, so scroll to the first visible block instead
+          const firstVisible = document.querySelector("#dashboard > [data-sec]:not(.sec-hidden)");
+          if (firstVisible) firstVisible.scrollIntoView({ behavior: "auto", block: "start" });
         }
       } else {
         document.getElementById(target).scrollIntoView({ behavior: smooth, block: "start" });
@@ -5629,11 +5839,11 @@ function initTileIndex() {
   document.querySelectorAll("[data-close-modal]").forEach((b) => {
     b.addEventListener("click", () => closeModalById(b.dataset.closeModal));
   });
-  ["syncModal", "settingsModal"].forEach((id) => {
+  ["syncModal", "settingsModal", "milestoneModal"].forEach((id) => {
     document.getElementById(id).addEventListener("click", (e) => { if (e.target.id === id) closeModalById(id); });
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") ["syncModal", "settingsModal"].forEach(closeModalById);
+    if (e.key === "Escape") ["syncModal", "settingsModal", "milestoneModal"].forEach(closeModalById);
   });
   document.getElementById("disconnectBtn").addEventListener("click", () => closeModalById("syncModal"));
 

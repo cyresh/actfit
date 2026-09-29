@@ -352,6 +352,29 @@
     text-transform:uppercase;
     letter-spacing:0.06em;
   }
+  .setting-card{
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    border-radius:10px;
+    padding:14px 14px 12px;
+    margin-bottom:14px;
+  }
+  .setting-card:last-child{ margin-bottom:0; }
+  .setting-card-head{ display:flex; align-items:center; gap:8px; }
+  .setting-card-head .setting-group-title{ flex:1; }
+  .info-btn{
+    width:22px; height:22px; border-radius:50%; flex-shrink:0;
+    border:1px solid var(--muted); background:transparent; color:var(--muted);
+    font-family:'JetBrains Mono',monospace; font-size:12px; font-style:italic; font-weight:700; line-height:1;
+    cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent;
+  }
+  .info-btn:hover, .setting-card.info-open .info-btn{ color:var(--route); border-color:var(--route); }
+  /* long explanatory text stays tucked away until the card's (i) button is tapped */
+  .setting-card .setting-info, .setting-card .opt-row em{ display:none; }
+  .setting-card.info-open .setting-info{ display:block; }
+  .setting-card.info-open .opt-row em{ display:block; }
+  .setting-card .setting-info{ margin:10px 0 0; }
+  .setting-card .opt-row{ background:var(--surface); padding:12px 14px; }
   #settingsModal input[type="text"]{
     background:var(--surface-2);
     color:var(--chalk);
@@ -1567,6 +1590,17 @@
     </div>
 
     <div class="section-title" id="secSegments">Segments</div>
+    <div class="filter-bar section-filter">
+      <div class="segmented" id="segTypeFilter">
+        <button data-seg-type="all" class="active">All</button>
+        <button data-seg-type="Run">Run</button>
+        <button data-seg-type="Ride">Ride</button>
+      </div>
+      <div class="segmented" id="segStarFilter">
+        <button data-seg-star="all" class="active">All</button>
+        <button data-seg-star="starred">&#9733; Starred</button>
+      </div>
+    </div>
     <div class="activities-controls">
       <span class="activities-count" id="segmentsCount"></span>
     </div>
@@ -1642,19 +1676,33 @@
       <div class="modal-title">Settings</div>
       <button class="modal-close" data-close-modal="settingsModal">&times;</button>
     </div>
-    <div class="setting-group-title">When I tap a tile</div>
-    <label class="opt-row"><input type="radio" name="viewMode" value="scroll"><span><strong>Scroll all data</strong><em>Everything stays on one long page; a tile jumps to its section.</em></span></label>
-    <label class="opt-row"><input type="radio" name="viewMode" value="single"><span><strong>Show one section</strong><em>A tile shows only that data. Tap it again to close it.</em></span></label>
-    <div class="setting-group-title" style="margin-top:22px;">AI images (optional)</div>
-    <input type="text" id="polliKeyInput" placeholder="Your personal Pollinations key" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px;">
-    <p class="ai-image-note">Generating from text alone works without a key, though the free anonymous tier can be busy. To let AI actually edit a photo you upload, add your own free key from <a href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener" style="color:var(--route);">enter.pollinations.ai/keys</a> — it's stored only on this device and used only for your own requests, never shared.</p>
-
-    <div class="setting-group-title" style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;">
-      <span>Tile order</span>
-      <button class="tile-order-reset" id="tileOrderResetBtn" type="button">Reset</button>
+    <div class="setting-card">
+      <div class="setting-card-head">
+        <div class="setting-group-title">When I tap a tile</div>
+        <button class="info-btn" type="button" aria-label="More info" aria-expanded="false">i</button>
+      </div>
+      <label class="opt-row"><input type="radio" name="viewMode" value="scroll"><span><strong>Scroll all data</strong><em>Everything stays on one long page; a tile jumps to its section.</em></span></label>
+      <label class="opt-row"><input type="radio" name="viewMode" value="single"><span><strong>Show one section</strong><em>A tile shows only that data. Tap it again to close it.</em></span></label>
     </div>
-    <p class="ai-image-note" style="margin-top:6px;">Use the arrows to put the tiles you use most at the top.</p>
-    <div id="tileOrderList"></div>
+
+    <div class="setting-card">
+      <div class="setting-card-head">
+        <div class="setting-group-title">AI images (optional)</div>
+        <button class="info-btn" type="button" aria-label="More info" aria-expanded="false">i</button>
+      </div>
+      <input type="text" id="polliKeyInput" placeholder="Your personal Pollinations key" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px;">
+      <p class="ai-image-note setting-info">Generating from text alone works without a key, though the free anonymous tier can be busy. To let AI actually edit a photo you upload, add your own free key from <a href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener" style="color:var(--route);">enter.pollinations.ai/keys</a> — it's stored only on this device and used only for your own requests, never shared.</p>
+    </div>
+
+    <div class="setting-card">
+      <div class="setting-card-head">
+        <div class="setting-group-title">Tile order</div>
+        <button class="tile-order-reset" id="tileOrderResetBtn" type="button">Reset</button>
+        <button class="info-btn" type="button" aria-label="More info" aria-expanded="false">i</button>
+      </div>
+      <p class="ai-image-note setting-info">Use the arrows to put the tiles you use most at the top.</p>
+      <div id="tileOrderList" style="margin-top:6px;"></div>
+    </div>
   </div>
 </div>
 
@@ -3534,7 +3582,7 @@ function renderRunSplitsTable() {
    Segments table (sortable, click headers — same pattern as
    the activities list)
    ========================================================= */
-const segmentListState = { sortField: "effort_count", sortDir: "desc" };
+const segmentListState = { sortField: "effort_count", sortDir: "desc", type: "all", starredOnly: false }; // type: all | Run | Ride
 
 // Merges the starred-segment stats (Strava's own PR/attempt numbers + rank) with the
 // per-activity tally of every segment attempted, into one row per segment id.
@@ -3566,13 +3614,23 @@ function segEscape(str) {
 }
 
 function renderSegmentsTable() {
-  const segments = getSegmentRows();
+  const allSegments = getSegmentRows();
   const tbody = document.getElementById("segmentsTableBody");
   const countEl = document.getElementById("segmentsCount");
 
-  if (segments.length === 0) {
+  if (allSegments.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>`;
     countEl.textContent = "";
+    return;
+  }
+
+  const segments = allSegments.filter((s) =>
+    (segmentListState.type === "all" || s.activity_type === segmentListState.type) &&
+    (!segmentListState.starredOnly || s.starred)
+  );
+  if (segments.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments match this filter.</td></tr>`;
+    countEl.textContent = `0 of ${allSegments.length} segments`;
     return;
   }
 
@@ -3612,10 +3670,29 @@ function renderSegmentsTable() {
   }).join("");
 
   const starredCount = sorted.filter((s) => s.starred).length;
-  countEl.textContent = `${sorted.length} segments attempted · ${starredCount} starred`;
+  const filtered = sorted.length !== allSegments.length;
+  countEl.textContent = filtered
+    ? `${sorted.length} of ${allSegments.length} segments · ${starredCount} starred`
+    : `${sorted.length} segments attempted · ${starredCount} starred`;
 }
 
 function initSegmentsControls() {
+  document.querySelectorAll("#segTypeFilter button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#segTypeFilter button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      segmentListState.type = btn.dataset.segType;
+      renderSegmentsTable();
+    });
+  });
+  document.querySelectorAll("#segStarFilter button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#segStarFilter button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      segmentListState.starredOnly = btn.dataset.segStar === "starred";
+      renderSegmentsTable();
+    });
+  });
   document.querySelectorAll("#segmentsTable thead th").forEach((th) => {
     th.addEventListener("click", () => {
       const field = th.dataset.sort;
@@ -5740,7 +5817,7 @@ function renderTileOrderSettings() {
     if (!tile) return;
     const row = document.createElement("div");
     row.className = "tile-order-row";
-    row.innerHTML = `<span class="tile-order-icon">${tile.querySelector(".tile-icon").textContent}</span><span class="tile-order-name">${tile.textContent.trim()}</span><button class="tile-order-btn" data-dir="up" ${i === 0 ? "disabled" : ""} aria-label="Move up">\u2191</button><button class="tile-order-btn" data-dir="down" ${i === order.length - 1 ? "disabled" : ""} aria-label="Move down">\u2193</button>`;
+    row.innerHTML = `<span class="tile-order-icon">${tile.querySelector(".tile-icon").textContent}</span><span class="tile-order-name">${Array.from(tile.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim()}</span><button class="tile-order-btn" data-dir="up" ${i === 0 ? "disabled" : ""} aria-label="Move up">\u2191</button><button class="tile-order-btn" data-dir="down" ${i === order.length - 1 ? "disabled" : ""} aria-label="Move down">\u2193</button>`;
     row.querySelectorAll(".tile-order-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const dir = btn.dataset.dir === "up" ? -1 : 1;
@@ -5814,6 +5891,13 @@ function initTileIndex() {
       } else {
         document.getElementById(target).scrollIntoView({ behavior: smooth, block: "start" });
       }
+    });
+  });
+
+  document.querySelectorAll("#settingsModal .info-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const open = b.closest(".setting-card").classList.toggle("info-open");
+      b.setAttribute("aria-expanded", String(open));
     });
   });
 

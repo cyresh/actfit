@@ -4088,11 +4088,10 @@ function downloadStatsCard() {
 
 /* =========================================================
    Milestone stats cards (10K / HM / 30K / FM) — shareable
-   PNG styled after Strava's own monthly-recap share cards:
-   black-to-orange gradient, frosted glass panel, a running-
-   shoe icon + milestone badge up top, this-year vs all-time
-   stat rows (count / distance / time / elevation), and a
-   scrolling ticker banner across the bottom of the card.
+   data-only PNG in the same flat style as the Overview stats
+   card: dark background, "10K STATS" title, then stacked rows
+   (count / distance / time / elevation), each showing this
+   year | all time.
    ========================================================= */
 const MILESTONE_CARD_DEFS = {
   k10: { label: "10K", full: "10K Runs" },
@@ -4123,22 +4122,6 @@ function computeMilestoneCardStats(bucketKey) {
     elevThisYear: sumElev(thisYearRuns),
     elevAllTime: sumElev(runs),
   };
-}
-
-// Manual rounded-rect path (kept independent of ctx.roundRect for
-// broader browser support).
-function milestoneRoundRectPath(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
 }
 
 // Stylised running-shoe glyph — a solid-fill silhouette in the spirit
@@ -4185,145 +4168,6 @@ function drawMilestoneShoeIcon(ctx, x, y, scale, color) {
   ctx.restore();
 }
 
-// Small zigzag "route line" mark used next to the wordmark — echoes the
-// app's own elevation-trace motif (see the hero .trace SVG) rather than
-// tracing any brand's actual logo mark.
-function drawBrandGlyph(ctx, x, y, s, color) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 6;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(0, 34);
-  ctx.lineTo(11, 8);
-  ctx.lineTo(19, 24);
-  ctx.lineTo(27, 0);
-  ctx.stroke();
-  ctx.restore();
-}
-
-// Loads the athlete's connected Strava avatar (already fetched into the
-// page's <img id="athleteAvatar">) so the card can carry the real
-// profile photo. Falls back to null (handled by drawAvatarBadge) if it's
-// missing, still loading, or blocked by CORS.
-function loadAvatarImage() {
-  return new Promise((resolve) => {
-    const src = document.getElementById("athleteAvatar")?.src;
-    if (!src) return resolve(null);
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-    setTimeout(() => resolve(null), 4000);
-  });
-}
-
-// Circular profile photo with a thick orange ring — same silhouette as
-// the avatar shown in the app's top bar, just scaled up for the card.
-function drawAvatarBadge(ctx, cx, cy, r, img, ringColor = "#FC4C02", ringW = 5) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.closePath();
-  if (img) {
-    ctx.save();
-    ctx.clip();
-    const s = Math.max((r * 2) / img.width, (r * 2) / img.height);
-    const dw = img.width * s, dh = img.height * s;
-    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
-    ctx.restore();
-  } else {
-    ctx.fillStyle = "#22303A";
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = "700 26px 'Big Shoulders Display', sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("S", cx, cy + 2);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-  }
-  ctx.lineWidth = ringW;
-  ctx.strokeStyle = ringColor;
-  ctx.stroke();
-  ctx.restore();
-}
-
-// Small shield-shaped "milestone badge" carrying the distance label —
-// stands in for the decorative patch/achievement icon, but tied to
-// the actual milestone being shared rather than being pure decoration.
-function drawMilestoneBadge(ctx, x, y, w, label) {
-  const h = w * 1.12;
-  ctx.save();
-  ctx.translate(x, y);
-
-  ctx.beginPath();
-  ctx.moveTo(w / 2, 0);
-  ctx.lineTo(w, h * 0.26);
-  ctx.lineTo(w, h * 0.68);
-  ctx.quadraticCurveTo(w, h * 0.96, w / 2, h);
-  ctx.quadraticCurveTo(0, h * 0.96, 0, h * 0.68);
-  ctx.lineTo(0, h * 0.26);
-  ctx.closePath();
-
-  const grad = ctx.createLinearGradient(0, 0, w, h);
-  grad.addColorStop(0, "#1E4E5F");
-  grad.addColorStop(0.55, "#2C6B4F");
-  grad.addColorStop(1, "#3A3E7C");
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  ctx.save();
-  ctx.clip();
-  ctx.strokeStyle = "rgba(255,255,255,0.22)";
-  ctx.lineWidth = 2;
-  for (let i = -1; i < 6; i++) {
-    ctx.beginPath();
-    ctx.moveTo(-10, h * 0.18 + i * 15);
-    ctx.lineTo(w * 0.42, h * 0.06 + i * 15);
-    ctx.lineTo(w * 0.68, h * 0.24 + i * 15);
-    ctx.lineTo(w + 10, h * 0.02 + i * 15);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "#FC4C02";
-  ctx.stroke();
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = `800 ${Math.round(w * 0.26)}px 'Big Shoulders Display', sans-serif`;
-  ctx.textAlign = "center";
-  ctx.fillText(label, w / 2, h * 0.6);
-  ctx.textAlign = "left";
-  ctx.restore();
-}
-
-// Scrolling ticker banner across the bottom of the card. The card is now
-// cropped to the panel itself, so the bar just spans full width — the
-// outer clip (rounded panel path) takes care of the corner radius.
-function drawMilestoneTicker(ctx, canvasW, y, height, text) {
-  ctx.save();
-  ctx.fillStyle = "#F4C9A0";
-  ctx.fillRect(0, y, canvasW, height);
-
-  ctx.fillStyle = "#141414";
-  ctx.font = "800 26px 'Big Shoulders Display', sans-serif";
-  ctx.textBaseline = "middle";
-  const unit = text + "     ";
-  const unitWidth = ctx.measureText(unit).width;
-  let tx = 0 - (unitWidth - (canvasW % unitWidth));
-  while (tx < canvasW) {
-    ctx.fillText(unit, tx, y + height / 2 + 1);
-    tx += unitWidth;
-  }
-  ctx.restore();
-}
-
 // Shrinks a bold stat-number font until it fits maxWidth. Both the
 // this-year and all-time columns share this helper so their numbers are
 // rendered in the exact same typeface/weight family.
@@ -4343,115 +4187,59 @@ function fitStatNumberFont(ctx, text, maxWidth, maxSize, minSize, fontFor) {
 async function drawMilestoneStatsCard(bucketKey) {
   const def = MILESTONE_CARD_DEFS[bucketKey];
   const stats = computeMilestoneCardStats(bucketKey);
-  const avatarImg = await loadAvatarImage();
 
-  // Canvas matches the glass panel exactly — everything outside the
-  // rounded frame is cropped away, so there's nothing to trim afterward.
-  const W = 648, H = 772, R = 34;
+  // Data-only card, styled like the Overview stats card: flat dark background, grey mono
+  // labels, big bold numbers. Portrait size is kept.
+  const W = 648, H = 772;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  milestoneRoundRectPath(ctx, 0, 0, W, H, R);
-  ctx.save();
-  ctx.clip();
-  ctx.fillStyle = "#121212";
+  ctx.fillStyle = "#12171A";
   ctx.fillRect(0, 0, W, H);
 
-  const dateStr = new Date().toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "2-digit" }).toUpperCase();
-  const padX = 40;
-  const rightEdge = W - 40;
+  const padX = 44;
+  const gap = 24;
+  const colW = (W - padX * 2 - gap) / 2;
+  const col1X = padX;
+  const col2X = padX + colW + gap;
 
-  // --- bold orange header block: glyph + wordmark, date, avatar, title ---
-  const headerH = 190;
-  const grad = ctx.createLinearGradient(0, 0, W, headerH);
-  grad.addColorStop(0, "#FC4C02");
-  grad.addColorStop(1, "#FF7A3D");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, headerH);
+  // title
+  ctx.fillStyle = "#EEF1EC";
+  ctx.font = "800 56px sans-serif";
+  ctx.fillText(`${def.label} STATS`, padX, 100);
 
-  const avatarR = 34;
-  const avatarCx = rightEdge - avatarR;
-  const avatarCy = 56;
-  drawBrandGlyph(ctx, padX, 26, 1, "#FFFFFF");
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "800 32px 'Big Shoulders Display', sans-serif";
-  ctx.fillText("STRAVA", padX + 42, 54);
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = "500 14px 'JetBrains Mono', monospace";
-  ctx.fillText(dateStr, padX, 78);
-  drawAvatarBadge(ctx, avatarCx, avatarCy, avatarR, avatarImg, "#FFFFFF", 5);
+  // column captions, once, above the rows
+  ctx.fillStyle = "#7C8A8A";
+  ctx.font = "500 16px monospace";
+  ctx.fillText("THIS YEAR", col1X, 154);
+  ctx.fillText("ALL TIME", col2X, 154);
 
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "800 44px 'Big Shoulders Display', sans-serif";
-  ctx.fillText(`${def.label} STATS`, padX, 158);
-
-  // --- 2x2 stat-tile grid, each with its own THIS YEAR / ALL TIME pair ---
   const rows = [
-    { label: `${def.label} count`, unit: "", thisVal: formatInt(stats.countThisYear), allVal: formatInt(stats.countAllTime) },
-    { label: "Total distance", unit: " km", thisVal: formatInt(stats.kmThisYear), allVal: formatInt(stats.kmAllTime) },
-    { label: "Total time", unit: " hrs", thisVal: formatInt(stats.hoursThisYear), allVal: formatInt(stats.hoursAllTime) },
-    { label: "Total elevation", unit: " m", thisVal: formatInt(stats.elevThisYear), allVal: formatInt(stats.elevAllTime) },
+    { label: `${def.label} COUNT`, unit: "", thisVal: formatInt(stats.countThisYear), allVal: formatInt(stats.countAllTime) },
+    { label: "TOTAL DISTANCE", unit: " km", thisVal: formatInt(stats.kmThisYear), allVal: formatInt(stats.kmAllTime) },
+    { label: "TOTAL TIME", unit: " hrs", thisVal: formatInt(stats.hoursThisYear), allVal: formatInt(stats.hoursAllTime) },
+    { label: "TOTAL ELEVATION", unit: " m", thisVal: formatInt(stats.elevThisYear), allVal: formatInt(stats.elevAllTime) },
   ];
 
-  const gridTop = headerH + 34;
-  const gap = 16;
-  const tileW = (W - padX * 2 - gap) / 2;
-  const tileH = 224;
-  const numberFont = (px) => `800 ${px}px 'Inter', sans-serif`;
-
+  const numberFont = (px) => `800 ${px}px sans-serif`;
+  // one shared size for every number so the rows line up; shrinks only as far as the widest value needs
+  const numSize = Math.min(...rows.flatMap((r) => [r.thisVal + r.unit, r.allVal + r.unit]).map((t) => fitStatNumberFont(ctx, t, colW, 58, 24, numberFont)));
+  const startY = 222;
+  const rowH = 140;
   rows.forEach((r, i) => {
-    const col = i % 2, row = Math.floor(i / 2);
-    const tx = padX + col * (tileW + gap);
-    const ty = gridTop + row * (tileH + gap);
+    const y = startY + i * rowH;
+    ctx.fillStyle = "#7C8A8A";
+    ctx.font = "500 18px monospace";
+    ctx.fillText(r.label, padX, y);
 
-    milestoneRoundRectPath(ctx, tx, ty, tileW, tileH, 20);
-    ctx.fillStyle = "rgba(255,255,255,0.05)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(255,255,255,0.65)";
-    ctx.font = "600 16px 'Inter', sans-serif";
-    ctx.fillText(r.label, tx + 18, ty + 32);
-
-    ctx.fillStyle = "#FC4C02";
-    ctx.font = "800 13px 'JetBrains Mono', monospace";
-    ctx.fillText("THIS YEAR", tx + 18, ty + 62);
-    const s1 = fitStatNumberFont(ctx, r.thisVal + r.unit, tileW - 36, 42, 20, numberFont);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = numberFont(s1);
-    ctx.fillText(r.thisVal + r.unit, tx + 18, ty + 108);
-
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
-    ctx.beginPath();
-    ctx.moveTo(tx + 18, ty + 132);
-    ctx.lineTo(tx + tileW - 18, ty + 132);
-    ctx.stroke();
-
-    ctx.fillStyle = "#FC4C02";
-    ctx.font = "800 13px 'JetBrains Mono', monospace";
-    ctx.fillText("ALL TIME", tx + 18, ty + 160);
-    const s2 = fitStatNumberFont(ctx, r.allVal + r.unit, tileW - 36, 36, 18, numberFont);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = numberFont(s2);
-    ctx.fillText(r.allVal + r.unit, tx + 18, ty + 202);
+    ctx.font = numberFont(numSize);
+    ctx.fillStyle = "#FF5A36";
+    ctx.fillText(r.thisVal + r.unit, col1X, y + 62);
+    ctx.fillStyle = "#EEF1EC";
+    ctx.fillText(r.allVal + r.unit, col2X, y + 62);
   });
-
-  // scrolling ticker banner, still clipped to the panel's rounded bottom
-  const tickerH = 60;
-  const tickerY = H - tickerH;
-  drawMilestoneTicker(ctx, W, tickerY, tickerH, `${def.label} STATS   ${dateStr}   STRAVA  `);
-
-  ctx.restore(); // release the panel clip
-
-  // frame outline on top, drawn last so it isn't dulled by the header fill
-  milestoneRoundRectPath(ctx, 0.5, 0.5, W - 1, H - 1, R);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  ctx.stroke();
 
   return canvas;
 }

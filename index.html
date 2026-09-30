@@ -1194,7 +1194,8 @@
   .ac-share-secondary{ background:var(--surface-2); color:var(--chalk); }
   .ac-share-primary{ background:var(--route); color:#fff; border-color:var(--route); }
   .ac-share-btn:active{ transform:scale(0.97); }
-  .ac-sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1290; }
+  .ac-sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:1290; }
+  .ac-sheet-backdrop.peek{ background:transparent; pointer-events:none; } /* panel collapsed: preview fully visible and draggable */
   .ac-sheet-backdrop.hidden{ display:none; }
   .ac-sheet{
     position:fixed; left:0; right:0; bottom:0; z-index:1300;
@@ -1222,6 +1223,46 @@
   .ac-sheet-body .segmented{ display:flex; }
   .ac-sheet-body .segmented button{ padding:12px 8px; }
   .drag-box.box-hidden{ display:none; }
+
+  /* ---- compact sheets (Data / Style / Layout) ---- */
+  .ac-sheet.compact{ max-height:44vh; }
+  .ac-sheet.compact .ac-sheet-handle{ margin:8px auto 0; }
+  .ac-sheet.compact .ac-sheet-head{ padding:4px 14px 8px; margin-bottom:10px; }
+  .ac-sheet.compact .ac-sheet-body{ padding:0 14px 14px; }
+  .ac-sheet.compact .ac-sheet-body .segmented button{ padding:10px 6px; }
+  .ac-sheet-head-actions{ display:flex; align-items:center; gap:2px; }
+  .ac-sheet-peek{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:999px; color:var(--chalk);
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.04em; padding:6px 11px; margin-right:6px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  }
+  .ac-sheet.collapsed .ac-sheet-body{ display:none; }
+  .ac-sheet.collapsed .ac-sheet-head{ margin-bottom:0; border-bottom:none; }
+
+  /* small touch tiles, shared by Data (on/off), Style (pick a setting) and Layout (pick a box) */
+  .ac-tile-grid{ display:grid; gap:8px; }
+  .ac-tile-grid.cols3{ grid-template-columns:repeat(3,1fr); }
+  .ac-tile-grid.cols4{ grid-template-columns:repeat(4,1fr); }
+  .ac-tile{
+    position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    min-height:52px; padding:6px 4px; background:var(--surface-2); border:1px solid var(--line); border-radius:8px;
+    color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:10px; text-transform:uppercase;
+    letter-spacing:0.03em; line-height:1.15; text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    width:100%; box-sizing:border-box;
+  }
+  .ac-tile-icon{ font-size:17px; line-height:1; }
+  .ac-tile-sub{ font-size:9px; color:var(--route); text-transform:none; letter-spacing:0; }
+  .ac-tile.active{ border-color:var(--route); background:rgba(255,90,54,0.1); color:var(--chalk); }
+  .ac-sheet-body .ac-data-tile{ display:block; position:relative; margin:0; padding:0; font-size:10px; }
+  .ac-data-tile input{ position:absolute; opacity:0; pointer-events:none; width:0; height:0; }
+  .ac-data-tile input:checked + .ac-tile{ border-color:var(--route); background:rgba(255,90,54,0.1); color:var(--chalk); }
+  .ac-data-tile input:disabled + .ac-tile{ opacity:0.6; }
+  .ac-data-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .ac-data-top span{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .ac-style-panel{ display:none; margin-bottom:12px; }
+  .ac-style-panel.active{ display:block; }
+  .ac-sheet-body .ac-style-panel > label:first-child, .ac-sheet-body .ac-layout-ctl > label:first-child{ margin:0 0 8px; }
+  .ac-layout-ctl{ margin-bottom:12px; }
 
   .ac-mode-tiles{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:2px 0 16px; }
   .ac-mode-tile{
@@ -1748,6 +1789,7 @@
 
   <div class="ac-toolbar">
     <button class="ac-tab" data-panel="panelBackground"><span>&#128444;&#65039;</span>Background</button>
+    <button class="ac-tab" data-panel="panelAdjust"><span>&#127900;&#65039;</span>Adjust</button>
     <button class="ac-tab" data-panel="panelData"><span>&#128202;</span>Data</button>
     <button class="ac-tab" data-panel="panelStyle"><span>&#127912;</span>Style</button>
     <button class="ac-tab" data-panel="panelLayout"><span>&#8596;&#65039;</span>Layout</button>
@@ -1762,7 +1804,7 @@
 
   <div class="ac-sheet hidden" id="panelBackground">
     <div class="ac-sheet-handle"></div>
-    <div class="ac-sheet-head"><span>Background</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-head"><span>Background</span><div class="ac-sheet-head-actions"><button class="ac-sheet-peek" data-peek-sheet type="button">&#9662; Preview</button><button class="ac-sheet-close" data-close-sheet>Done</button></div></div>
     <div class="ac-sheet-body modal-controls">
       <div class="ac-mode-tiles" id="backgroundModeTiles">
         <button class="ac-mode-tile" data-mode="transparent"><span class="ac-mode-tile-icon">&#9723;</span>Transparent</button>
@@ -1802,111 +1844,151 @@
     </div>
   </div>
 
-  <div class="ac-sheet hidden" id="panelData">
+  <div class="ac-sheet compact hidden" id="panelAdjust">
     <div class="ac-sheet-handle"></div>
-    <div class="ac-sheet-head"><span>Data</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-head"><span>Adjust photo</span><div class="ac-sheet-head-actions"><button class="ac-sheet-peek" data-peek-sheet type="button">&#9662; Preview</button><button class="ac-sheet-close" data-close-sheet>Done</button></div></div>
     <div class="ac-sheet-body modal-controls">
-      <div class="templates-toggle-row">
-        <button class="btn btn-ghost" id="showTemplatesBtn" style="font-size:11px;padding:6px 12px;">Choose a template</button>
+      <p class="ai-image-note hidden" id="adjustNote" style="margin:0 0 10px;">Add a photo or an AI background first — Adjust only changes the background image, not the text or route.</p>
+      <div class="ac-layout-ctl">
+        <div class="ac-data-top" style="margin-bottom:8px;">
+          <span id="adjustLabel">Brightness</span>
+          <button class="btn btn-ghost" id="adjustResetBtn" type="button" style="font-size:11px;padding:6px 12px;">Reset</button>
+        </div>
+        <div class="control-row">
+          <input type="range" id="adjustSlider" min="-100" max="100" value="0">
+          <span class="mini-range-value" id="adjustValue">0</span>
+        </div>
+      </div>
+      <div class="ac-tile-grid cols3" id="adjustTiles">
+        <button class="ac-tile active" type="button" data-adjust="brightness"><span class="ac-tile-icon">&#9728;&#65039;</span>Brightness<span class="ac-tile-sub">0</span></button>
+        <button class="ac-tile" type="button" data-adjust="contrast"><span class="ac-tile-icon">&#9680;</span>Contrast<span class="ac-tile-sub">0</span></button>
+        <button class="ac-tile" type="button" data-adjust="saturation"><span class="ac-tile-icon">&#127912;</span>Saturation<span class="ac-tile-sub">0</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ac-sheet compact hidden" id="panelData">
+    <div class="ac-sheet-handle"></div>
+    <div class="ac-sheet-head"><span>Data</span><div class="ac-sheet-head-actions"><button class="ac-sheet-peek" data-peek-sheet type="button">&#9662; Preview</button><button class="ac-sheet-close" data-close-sheet>Done</button></div></div>
+    <div class="ac-sheet-body modal-controls">
+      <div class="ac-data-top">
+        <span>Tap to show / hide</span>
+        <button class="btn btn-ghost" id="showTemplatesBtn" style="font-size:11px;padding:6px 12px;">Templates</button>
       </div>
       <div class="preset-gallery hidden" id="presetGallery"></div>
 
-      <label>Stats to include</label>
-      <div class="checklist" id="activityCardChecklist">
-        <label><input type="checkbox" value="name" checked> Activity name</label>
-        <label><input type="checkbox" value="date" checked> Date</label>
-        <label><input type="checkbox" value="distance" checked> Distance</label>
-        <label><input type="checkbox" value="time" checked> Moving time</label>
-        <label><input type="checkbox" value="pace" checked> Pace / speed</label>
-        <label><input type="checkbox" value="elevation" checked> Elevation gain</label>
-        <label><input type="checkbox" value="heartrate"> Avg heart rate</label>
-        <label><input type="checkbox" value="route" checked> Route line</label>
-        <label><input type="checkbox" value="splits"> Splits (per-km graph)</label>
+      <div class="ac-tile-grid cols3" id="activityCardChecklist">
+        <label class="ac-data-tile"><input type="checkbox" value="name" checked><span class="ac-tile"><span class="ac-tile-icon">&#127991;&#65039;</span><span class="ac-tile-text">Name</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="date" checked><span class="ac-tile"><span class="ac-tile-icon">&#128197;</span><span class="ac-tile-text">Date</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="distance" checked><span class="ac-tile"><span class="ac-tile-icon">&#128207;</span><span class="ac-tile-text">Distance</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="time" checked><span class="ac-tile"><span class="ac-tile-icon">&#9201;&#65039;</span><span class="ac-tile-text">Time</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="pace" checked><span class="ac-tile"><span class="ac-tile-icon">&#9889;</span><span class="ac-tile-text">Pace</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="elevation" checked><span class="ac-tile"><span class="ac-tile-icon">&#9968;&#65039;</span><span class="ac-tile-text">Elevation</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="heartrate"><span class="ac-tile"><span class="ac-tile-icon">&#10084;&#65039;</span><span class="ac-tile-text">Heart rate</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="route" checked><span class="ac-tile"><span class="ac-tile-icon">&#128506;&#65039;</span><span class="ac-tile-text">Route</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="splits"><span class="ac-tile"><span class="ac-tile-icon">&#128202;</span><span class="ac-tile-text">Splits</span></span></label>
       </div>
     </div>
   </div>
 
-  <div class="ac-sheet hidden" id="panelStyle">
+  <div class="ac-sheet compact hidden" id="panelStyle">
     <div class="ac-sheet-handle"></div>
-    <div class="ac-sheet-head"><span>Style</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-head"><span>Style</span><div class="ac-sheet-head-actions"><button class="ac-sheet-peek" data-peek-sheet type="button">&#9662; Preview</button><button class="ac-sheet-close" data-close-sheet>Done</button></div></div>
     <div class="ac-sheet-body modal-controls">
-      <label>Title align</label>
-      <div class="segmented" id="titleAlignFilter" style="width:100%;">
-        <button data-align="left" class="active" style="flex:1;">Left</button>
-        <button data-align="right" style="flex:1;">Right</button>
+      <div class="ac-style-panel active" data-style="titleAlign">
+        <label>Title align</label>
+        <div class="segmented" id="titleAlignFilter" style="width:100%;">
+          <button data-align="left" class="active" style="flex:1;">Left</button>
+          <button data-align="right" style="flex:1;">Right</button>
+        </div>
+      </div>
+      <div class="ac-style-panel" data-style="statsLayout">
+        <label>Stats layout</label>
+        <div class="segmented" id="statsArrangementFilter" style="width:100%;">
+          <button data-arrangement="grid" class="active" style="flex:1;">Grid</button>
+          <button data-arrangement="row" style="flex:1;">1 line</button>
+          <button data-arrangement="stacked" style="flex:1;">Stacked</button>
+        </div>
+      </div>
+      <div class="ac-style-panel" data-style="statsAlign">
+        <label>Stats align</label>
+        <div class="segmented" id="statsAlignFilter" style="width:100%;">
+          <button data-align="left" class="active" style="flex:1;">Left</button>
+          <button data-align="right" style="flex:1;">Right</button>
+        </div>
+      </div>
+      <div class="ac-style-panel" data-style="rowGap">
+        <label>Row spacing</label>
+        <div class="control-row">
+          <input type="range" id="rowGapSlider" min="50" max="250" value="100">
+          <span class="mini-range-value" id="rowGapValue">1.0x</span>
+        </div>
+      </div>
+      <div class="ac-style-panel" data-style="colGap">
+        <label>Number spacing</label>
+        <div class="control-row">
+          <input type="range" id="colGapSlider" min="50" max="250" value="100">
+          <span class="mini-range-value" id="colGapValue">1.0x</span>
+        </div>
+      </div>
+      <div class="ac-style-panel" data-style="textColor">
+        <label>Text color</label>
+        <select id="textColorSelect">
+          <option value="auto" selected>Auto (matches photo)</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+      <div class="ac-style-panel" data-style="scrim">
+        <label>Background darkness</label>
+        <div class="control-row">
+          <input type="range" id="scrimSlider" min="0" max="100" value="60">
+          <span class="mini-range-value" id="scrimValue">60%</span>
+        </div>
+      </div>
+      <div class="ac-style-panel" data-style="watermark">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);">
+          <input type="checkbox" id="watermarkToggle" checked style="width:auto;"> Show "Strava Dash" watermark
+        </label>
       </div>
 
-      <label>Stats layout</label>
-      <div class="segmented" id="statsArrangementFilter" style="width:100%;">
-        <button data-arrangement="grid" class="active" style="flex:1;">Grid</button>
-        <button data-arrangement="row" style="flex:1;">1 line</button>
-        <button data-arrangement="stacked" style="flex:1;">Stacked</button>
+      <div class="ac-tile-grid cols4" id="styleTiles">
+        <button class="ac-tile active" type="button" data-style="titleAlign"><span class="ac-tile-icon">T</span>Title align</button>
+        <button class="ac-tile" type="button" data-style="statsLayout"><span class="ac-tile-icon">&#9638;</span>Stats layout</button>
+        <button class="ac-tile" type="button" data-style="statsAlign"><span class="ac-tile-icon">&#9776;</span>Stats align</button>
+        <button class="ac-tile" type="button" data-style="rowGap"><span class="ac-tile-icon">&#8597;</span>Row gap</button>
+        <button class="ac-tile" type="button" data-style="colGap"><span class="ac-tile-icon">&#8596;</span>Number gap</button>
+        <button class="ac-tile" type="button" data-style="textColor"><span class="ac-tile-icon">A</span>Text color</button>
+        <button class="ac-tile" type="button" data-style="scrim"><span class="ac-tile-icon">&#9680;</span>Darkness</button>
+        <button class="ac-tile" type="button" data-style="watermark"><span class="ac-tile-icon">&copy;</span>Watermark</button>
       </div>
-
-      <label>Stats align</label>
-      <div class="segmented" id="statsAlignFilter" style="width:100%;">
-        <button data-align="left" class="active" style="flex:1;">Left</button>
-        <button data-align="right" style="flex:1;">Right</button>
-      </div>
-
-      <label>Row spacing</label>
-      <div class="control-row">
-        <input type="range" id="rowGapSlider" min="50" max="250" value="100">
-        <span class="mini-range-value" id="rowGapValue">1.0x</span>
-      </div>
-
-      <label>Number spacing</label>
-      <div class="control-row">
-        <input type="range" id="colGapSlider" min="50" max="250" value="100">
-        <span class="mini-range-value" id="colGapValue">1.0x</span>
-      </div>
-
-      <label>Text color</label>
-      <select id="textColorSelect">
-        <option value="auto" selected>Auto (matches photo)</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-
-      <label>Background darkness</label>
-      <div class="control-row">
-        <input type="range" id="scrimSlider" min="0" max="100" value="60">
-        <span class="mini-range-value" id="scrimValue">60%</span>
-      </div>
-
-      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--chalk);">
-        <input type="checkbox" id="watermarkToggle" checked style="width:auto;"> Show "Strava Dash" watermark
-      </label>
     </div>
   </div>
 
-  <div class="ac-sheet hidden" id="panelLayout">
+  <div class="ac-sheet compact hidden" id="panelLayout">
     <div class="ac-sheet-handle"></div>
-    <div class="ac-sheet-head"><span>Layout</span><button class="ac-sheet-close" data-close-sheet>Done</button></div>
+    <div class="ac-sheet-head"><span>Layout</span><div class="ac-sheet-head-actions"><button class="ac-sheet-peek" data-peek-sheet type="button">&#9662; Preview</button><button class="ac-sheet-close" data-close-sheet>Done</button></div></div>
     <div class="ac-sheet-body modal-controls">
-      <p class="ai-image-note" style="margin-top:0;">Fine-tune rotation here, or twist a box's green dot right on the preview.</p>
-      <label>Title rotation</label>
-      <div class="control-row">
-        <input type="range" id="titleRotationSlider" min="-90" max="90" value="0">
-        <span class="mini-range-value" id="titleRotationValue">0°</span>
+      <div class="ac-layout-ctl">
+        <label>Rotate selected box</label>
+        <div class="control-row">
+          <input type="range" id="layoutRotationSlider" min="-90" max="90" value="0">
+          <span class="mini-range-value" id="layoutRotationValue">0&deg;</span>
+        </div>
       </div>
-
-      <label>Stats rotation</label>
-      <div class="control-row">
-        <input type="range" id="statsRotationSlider" min="-90" max="90" value="0">
-        <span class="mini-range-value" id="statsRotationValue">0°</span>
+      <div class="ac-tile-grid cols4" id="layoutTiles">
+        <button class="ac-tile active" type="button" data-layout="title"><span class="ac-tile-icon">T</span>Title<span class="ac-tile-sub">0&deg;</span></button>
+        <button class="ac-tile" type="button" data-layout="stats"><span class="ac-tile-icon">&#9638;</span>Stats<span class="ac-tile-sub">0&deg;</span></button>
+        <button class="ac-tile" type="button" data-layout="route"><span class="ac-tile-icon">&#128506;&#65039;</span>Route<span class="ac-tile-sub">0&deg;</span></button>
+        <button class="ac-tile" type="button" data-layout="splits"><span class="ac-tile-icon">&#128202;</span>Splits<span class="ac-tile-sub">0&deg;</span></button>
       </div>
-
-      <label>Route rotation</label>
-      <div class="control-row">
-        <input type="range" id="routeRotationSlider" min="-90" max="90" value="0">
-        <span class="mini-range-value" id="routeRotationValue">0°</span>
-      </div>
-
-      <label>Splits rotation</label>
-      <div class="control-row">
-        <input type="range" id="splitsRotationSlider" min="-90" max="90" value="0">
-        <span class="mini-range-value" id="splitsRotationValue">0°</span>
+      <!-- the per-box sliders stay in the DOM (hidden) because the preview's twist handles, reset and
+           presets all read/write them; the single slider above drives whichever one is selected -->
+      <div hidden>
+        <input type="range" id="titleRotationSlider" min="-90" max="90" value="0"><span id="titleRotationValue">0°</span>
+        <input type="range" id="statsRotationSlider" min="-90" max="90" value="0"><span id="statsRotationValue">0°</span>
+        <input type="range" id="routeRotationSlider" min="-90" max="90" value="0"><span id="routeRotationValue">0°</span>
+        <input type="range" id="splitsRotationSlider" min="-90" max="90" value="0"><span id="splitsRotationValue">0°</span>
       </div>
     </div>
   </div>
@@ -4315,6 +4397,7 @@ let activityCardTextColor = "auto"; // "auto" | "light" | "dark"
 let activityCardScrim = 0.6;        // 0..1, background darkness for readability
 let activityCardWatermark = true;
 let activityCardTransparent = false; // true = no photo, transparent PNG background
+let activityCardAdjust = { brightness: 0, contrast: 0, saturation: 0 }; // -100..100 each; applied to the background image only
 let backgroundMode = "photo"; // "transparent" | "photo" | "ai" — which Background tile is active
 
 // Shows exactly one Background tile's controls at a time and keeps
@@ -4451,6 +4534,8 @@ function resetActivityCardStyle() {
   activityCardTextColor = "auto";
   activityCardScrim = 0.6;
   activityCardWatermark = true;
+  activityCardAdjust = { brightness: 0, contrast: 0, saturation: 0 };
+  syncAdjustUI();
   document.getElementById("textColorSelect").value = "auto";
   document.getElementById("scrimSlider").value = 60;
   document.getElementById("scrimValue").textContent = "60%";
@@ -4552,12 +4637,36 @@ function closeActivityCardModal() {
 }
 
 // ---------- bottom sheets (Background / Data / Style / Layout) ----------
+const LAYOUT_KEYS = ["title", "stats", "route", "splits"];
+let layoutSelected = "title";
+function syncLayoutMaster() {
+  const current = document.getElementById(`${layoutSelected}RotationSlider`).value;
+  document.getElementById("layoutRotationSlider").value = current;
+  document.getElementById("layoutRotationValue").textContent = `${current}°`;
+  document.querySelectorAll("#layoutTiles .ac-tile").forEach((tile) => {
+    const k = tile.dataset.layout;
+    tile.classList.toggle("active", k === layoutSelected);
+    tile.querySelector(".ac-tile-sub").textContent = `${document.getElementById(`${k}RotationSlider`).value}°`;
+  });
+}
+function resetSheetPeek() {
+  document.querySelectorAll(".ac-sheet").forEach((sheet) => {
+    sheet.classList.remove("collapsed");
+    const peek = sheet.querySelector("[data-peek-sheet]");
+    if (peek) peek.innerHTML = "&#9662; Preview";
+  });
+  document.getElementById("acSheetBackdrop").classList.remove("peek");
+}
 function openSheet(id) {
+  resetSheetPeek();
+  if (id === "panelLayout") syncLayoutMaster();
+  if (id === "panelAdjust") syncAdjustUI();
   document.querySelectorAll(".ac-sheet").forEach((sheet) => sheet.classList.toggle("hidden", sheet.id !== id));
   document.getElementById("acSheetBackdrop").classList.remove("hidden");
   document.querySelectorAll(".ac-tab").forEach((t) => t.classList.toggle("active", t.dataset.panel === id));
 }
 function closeSheets() {
+  resetSheetPeek();
   document.querySelectorAll(".ac-sheet").forEach((sheet) => sheet.classList.add("hidden"));
   document.getElementById("acSheetBackdrop").classList.add("hidden");
   document.querySelectorAll(".ac-tab").forEach((t) => t.classList.remove("active"));
@@ -4620,6 +4729,83 @@ function sampleAverageLuminance(ctx, x, y, w, h) {
   return count ? total / count : 128;
 }
 
+// ---------- background photo adjustments (Adjust tab) ----------
+// Pixel processing rather than ctx.filter, because canvas filters aren't reliable on iPhone Safari.
+// The adjusted copy is cached per (image, values), so dragging boxes around doesn't re-process the photo.
+const adjustCache = { image: null, key: "", canvas: null };
+
+function isNeutralAdjust(a) {
+  return !a || (!a.brightness && !a.contrast && !a.saturation);
+}
+
+function getAdjustedBackground(image, adj) {
+  if (isNeutralAdjust(adj)) return image;
+  const key = `${adj.brightness}|${adj.contrast}|${adj.saturation}`;
+  if (adjustCache.image === image && adjustCache.key === key) return adjustCache.canvas;
+
+  const MAX_SIDE = 2400; // plenty for a 1080-wide card, keeps the per-change work small on phones
+  const k = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
+  const w = Math.max(1, Math.round(image.width * k));
+  const h = Math.max(1, Math.round(image.height * k));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const cx = c.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(image, 0, 0, w, h);
+  let imgData;
+  try {
+    imgData = cx.getImageData(0, 0, w, h);
+  } catch (e) {
+    return image; // cross-origin image with no CORS access: can't read pixels, show it unadjusted
+  }
+
+  // brightness (multiplicative, so blacks stay black) + contrast around mid-grey, baked into one lookup table
+  const bMul = 1 + adj.brightness / 100;
+  const cc = adj.contrast * 1.5;
+  const cFactor = (259 * (cc + 255)) / (255 * (259 - cc));
+  const lut = new Uint8ClampedArray(256);
+  for (let v = 0; v < 256; v++) lut[v] = cFactor * (v * bMul - 128) + 128;
+  const sat = 1 + adj.saturation / 100;
+
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    let r = lut[d[i]], g = lut[d[i + 1]], b = lut[d[i + 2]];
+    if (sat !== 1) {
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      r = gray + (r - gray) * sat;
+      g = gray + (g - gray) * sat;
+      b = gray + (b - gray) * sat;
+    }
+    d[i] = r; d[i + 1] = g; d[i + 2] = b; // Uint8ClampedArray clamps to 0-255
+  }
+  cx.putImageData(imgData, 0, 0);
+
+  adjustCache.image = image;
+  adjustCache.key = key;
+  adjustCache.canvas = c;
+  return c;
+}
+
+let adjustSelected = "brightness";
+let adjustRaf = 0;
+function syncAdjustUI() {
+  const slider = document.getElementById("adjustSlider");
+  if (!slider) return;
+  const v = activityCardAdjust[adjustSelected];
+  slider.value = v;
+  document.getElementById("adjustValue").textContent = v > 0 ? `+${v}` : `${v}`;
+  document.getElementById("adjustLabel").textContent = adjustSelected.charAt(0).toUpperCase() + adjustSelected.slice(1);
+  document.querySelectorAll("#adjustTiles .ac-tile").forEach((tile) => {
+    const val = activityCardAdjust[tile.dataset.adjust];
+    tile.classList.toggle("active", tile.dataset.adjust === adjustSelected);
+    tile.querySelector(".ac-tile-sub").textContent = val > 0 ? `+${val}` : `${val}`;
+  });
+  const hasBackground = Boolean(activityCardState.image) && !activityCardTransparent;
+  document.getElementById("adjustNote").classList.toggle("hidden", hasBackground);
+  slider.disabled = !hasBackground;
+  document.getElementById("adjustResetBtn").disabled = !hasBackground;
+}
+
 function drawActivityCard(activity, image, selection, layout, style, splitsData) {
   const canvas = document.createElement("canvas");
   const { w: W, h: H } = cardDims(); // reads the card-size switch in the top bar
@@ -4634,13 +4820,14 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
     ctx.fillStyle = "#12171A";
     ctx.fillRect(0, 0, W, H);
     if (image) {
-      const scale = Math.max(W / image.width, H / image.height);
-      const w = image.width * scale, h = image.height * scale;
+      const bg = getAdjustedBackground(image, style.adjust); // the photo itself, or a brightness/contrast/saturation-adjusted copy
+      const scale = Math.max(W / bg.width, H / bg.height);
+      const w = bg.width * scale, h = bg.height * scale;
       const maxOffsetX = Math.max(0, (w - W) / 2);
       const maxOffsetY = Math.max(0, (h - H) / 2);
       const offX = Math.min(Math.max(layout.photo.offsetX, -maxOffsetX), maxOffsetX);
       const offY = Math.min(Math.max(layout.photo.offsetY, -maxOffsetY), maxOffsetY);
-      ctx.drawImage(image, (W - w) / 2 + offX, (H - h) / 2 + offY, w, h);
+      ctx.drawImage(bg, (W - w) / 2 + offX, (H - h) / 2 + offY, w, h);
 
       const scrim = style.scrim;
       const grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -4898,7 +5085,7 @@ function truncateCanvasText(ctx, text, maxWidth) {
 }
 
 function currentCardStyle() {
-  return { textColor: activityCardTextColor, scrim: activityCardScrim, watermark: activityCardWatermark, transparent: activityCardTransparent };
+  return { textColor: activityCardTextColor, scrim: activityCardScrim, watermark: activityCardWatermark, transparent: activityCardTransparent, adjust: activityCardAdjust };
 }
 
 function redrawActivityCardPreview() {
@@ -5174,6 +5361,52 @@ function initActivityCardModal() {
   document.getElementById("acSheetBackdrop").addEventListener("click", closeSheets);
   document.querySelectorAll("[data-close-sheet]").forEach((btn) => btn.addEventListener("click", closeSheets));
 
+  // collapse the open panel down to its title bar so the whole preview is visible (and draggable); tap again to bring it back
+  document.querySelectorAll("[data-peek-sheet]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const collapsed = btn.closest(".ac-sheet").classList.toggle("collapsed");
+      btn.innerHTML = collapsed ? "&#9652; Panel" : "&#9662; Preview";
+      document.getElementById("acSheetBackdrop").classList.toggle("peek", collapsed);
+    });
+  });
+
+  // Style: tap a setting tile, only that control shows
+  document.querySelectorAll("#styleTiles .ac-tile").forEach((tile) => {
+    tile.addEventListener("click", () => {
+      document.querySelectorAll("#styleTiles .ac-tile").forEach((t) => t.classList.toggle("active", t === tile));
+      document.querySelectorAll("#panelStyle .ac-style-panel").forEach((p) => p.classList.toggle("active", p.dataset.style === tile.dataset.style));
+    });
+  });
+
+  // Adjust: pick brightness / contrast / saturation, one slider; redraws are coalesced to one per frame
+  document.querySelectorAll("#adjustTiles .ac-tile").forEach((tile) => {
+    tile.addEventListener("click", () => { adjustSelected = tile.dataset.adjust; syncAdjustUI(); });
+  });
+  document.getElementById("adjustSlider").addEventListener("input", (e) => {
+    activityCardAdjust = { ...activityCardAdjust, [adjustSelected]: parseInt(e.target.value, 10) };
+    syncAdjustUI();
+    if (!adjustRaf) adjustRaf = requestAnimationFrame(() => { adjustRaf = 0; redrawActivityCardPreview(); });
+  });
+  document.getElementById("adjustResetBtn").addEventListener("click", () => {
+    activityCardAdjust = { brightness: 0, contrast: 0, saturation: 0 };
+    syncAdjustUI();
+    redrawActivityCardPreview();
+  });
+
+  // Layout: one slider, applied to whichever box tile is selected
+  document.querySelectorAll("#layoutTiles .ac-tile").forEach((tile) => {
+    tile.addEventListener("click", () => { layoutSelected = tile.dataset.layout; syncLayoutMaster(); });
+  });
+  document.getElementById("layoutRotationSlider").addEventListener("input", (e) => {
+    const target = document.getElementById(`${layoutSelected}RotationSlider`);
+    target.value = e.target.value;
+    target.dispatchEvent(new Event("input", { bubbles: true })); // the existing per-box handler updates state + redraws
+  });
+  // twist handles on the preview, Reset and presets change the per-box values — keep the single slider and tiles in step
+  const layoutObserver = new MutationObserver(syncLayoutMaster);
+  LAYOUT_KEYS.forEach((k) => layoutObserver.observe(document.getElementById(`${k}RotationValue`), { childList: true, characterData: true, subtree: true }));
+  syncLayoutMaster();
+
   document.querySelectorAll("#cardSizeSwitch button").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.size === activityCardSizeKey);
     btn.addEventListener("click", () => switchCardSize(btn.dataset.size));
@@ -5194,10 +5427,10 @@ function initActivityCardModal() {
       cb.addEventListener("change", async (e) => {
         if (!e.target.checked) { redrawActivityCardPreview(); return; }
         const label = e.target.closest("label");
-        const textNode = label.lastChild;
+        const textNode = label.querySelector(".ac-tile-text") || label.lastChild;
         const originalText = textNode.textContent;
         e.target.disabled = true;
-        textNode.textContent = " Loading splits…";
+        textNode.textContent = "Loading…";
         try {
           activityCardState.splits = await ensureSplitsForActivity(activityCardState.activityId);
           if (!activityCardState.splits || !activityCardState.splits.length) {

@@ -1412,6 +1412,7 @@
       <button class="tile" data-id="prs" data-target="secPRs"><span class="tile-icon">🏆</span>Personal records</button>
       <button class="tile" data-id="routes" data-target="secRoutes"><span class="tile-icon">🗺️</span>All routes</button>
       <button class="tile" data-id="segments" data-target="secSegments"><span class="tile-icon">⛰️</span>Segments</button>
+      <button class="tile" data-id="statsApp" data-action="statsApp"><span class="tile-icon">🟧</span>Refresh stats</button>
       <button class="tile" data-id="settings" data-action="settings"><span class="tile-icon">⚙️</span>Settings</button>
     </nav>
     <p class="single-hint" id="singleHint" style="display:none;">Single-view mode: tap a tile to show only that section.</p>
@@ -2003,9 +2004,10 @@
    ========================================================= */
 const CONFIG = {
   STRAVA_CLIENT_ID: "266170",
-  WORKER_URL: "https://actfit-oauth.cysuresh.workers.dev",
+  WORKER_URL: "https://strava-auto-stats.cysuresh.workers.dev",
+  STATS_APP_URL: "https://strava-auto-stats.cysuresh.workers.dev/app", // the "Refresh stats" tile opens this
   REDIRECT_URI: window.location.origin + window.location.pathname,
-  SCOPE: "read,activity:read_all",
+  SCOPE: "read,activity:read_all,activity:write",
 };
 
 const STORAGE_KEY = "strava_dash_tokens";
@@ -6017,7 +6019,7 @@ function refreshAfterReveal() {
 const TILE_ORDER_KEY = "strava_dash_tile_order";
 // Fixed, so "Reset" always has a real default to go back to \u2014 never derived
 // from the current (possibly already reordered) DOM.
-const DEFAULT_TILE_ORDER = ["sync", "overview", "volume", "pace", "calendar", "rideYear", "runYear", "splits", "milestones", "breakdown", "activeDays", "activities", "prs", "routes", "segments", "settings"];
+const DEFAULT_TILE_ORDER = ["sync", "overview", "volume", "pace", "calendar", "rideYear", "runYear", "splits", "milestones", "breakdown", "activeDays", "activities", "prs", "routes", "segments", "statsApp", "settings"];
 function getDefaultTileOrder() {
   const present = new Set(Array.from(document.querySelectorAll("#tileIndex .tile")).map((t) => t.dataset.id));
   return DEFAULT_TILE_ORDER.filter((id) => present.has(id));
@@ -6107,6 +6109,7 @@ function initTileIndex() {
     tile.addEventListener("click", () => {
       const action = tile.dataset.action;
       if (action === "sync") { openModalById("syncModal"); return; }
+      if (action === "statsApp") { window.open(CONFIG.STATS_APP_URL, "_blank", "noopener"); return; }
       if (action === "settings") { syncSettingsUI(); openModalById("settingsModal"); return; }
       const target = tile.dataset.target;
       if (viewState.mode === "single") {

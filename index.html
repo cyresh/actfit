@@ -2022,6 +2022,7 @@ const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + ath
 const SEGMENT_EFFORTS_KEY = "strava_dash_segment_efforts"; // { [segmentId]: {id, name, activity_type, distance, average_grade, starred, attempts, best_time, best_date, last_date} } — every segment you have attempted, aggregated from your activities
 const SEGMENT_SCAN_DONE_KEY = "strava_dash_segment_scan_done"; // array of activity ids already scanned for segment efforts (resumable)
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
+const STARRED_REFRESH_MS = 24 * 60 * 60 * 1000; // starred segments fetched less than this long ago are NOT fetched again (saves Strava requests)
 const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
 const RIDE_TYPES = new Set(["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]);
 const SPLIT_NAMES = ["1K", "5K", "10K", "15K", "Half-Marathon", "30K", "Marathon"];
@@ -2565,6 +2566,11 @@ async function fetchStarredSegments(onProgress) {
 
   for (const seg of starred) {
     if (segmentsStopRequested) break;
+    const already = segments[seg.id];
+    if (already && already.fetched_at && Date.now() - already.fetched_at < STARRED_REFRESH_MS) {
+      processed++; // fetched recently: reuse it, costs no Strava request
+      continue;
+    }
     onProgress?.(`Fetching segment details… ${processed}/${starred.length}`);
     const detail = await fetchSegmentDetail(accessToken, seg.id);
     const stats = detail.athlete_segment_stats || {};
@@ -2581,9 +2587,10 @@ async function fetchStarredSegments(onProgress) {
       pr_date: stats.pr_date ?? null,
       effort_count: stats.effort_count ?? null,
       pr_rank: stats.pr_rank ?? null, // only present for subscribers
+      fetched_at: Date.now(),
     };
     processed++;
-    if (processed % 10 === 0) saveSegments(segments);
+    saveSegments(segments); // save every segment so stopping or closing the tab never loses progress
     await sleep(300);
   }
 

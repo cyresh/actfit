@@ -810,6 +810,10 @@
     text-overflow:ellipsis;
   }
   table.activities-table tbody tr:hover td{ background:rgba(255,255,255,0.03); }
+  /* Segments: let long names wrap so every column fits on desktop without sideways scrolling */
+  table#segmentsTable{ min-width:0; }
+  table#segmentsTable td:first-child{ white-space:normal; word-break:break-word; min-width:200px; width:38%; }
+  table#segmentsTable td:nth-child(2){ max-width:none; overflow:visible; }
   .hr-cell{ border-radius:3px; padding:4px 8px !important; color:#12171A; font-weight:600; }
   tfoot.activities-totals td{
     background:var(--surface-2);
@@ -1683,10 +1687,11 @@
             <th data-sort="pr_elapsed_time">PR Time</th>
             <th data-sort="effort_count">Attempts</th>
             <th data-sort="pr_rank">Rank</th>
+            <th data-sort="total_distance">Total Distance</th>
           </tr>
         </thead>
         <tbody id="segmentsTableBody">
-          <tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>
+          <tr><td colspan="8" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>
         </tbody>
       </table>
     </div>
@@ -3999,6 +4004,7 @@ function getSegmentRows() {
       pr_elapsed_time: times.length ? Math.min(...times) : null,
       effort_count: counts.length ? Math.max(...counts) : null,
       pr_rank: s?.pr_rank ?? null,
+      total_distance: (counts.length ? Math.max(...counts) : null) != null ? (counts.length ? Math.max(...counts) : 0) * (s?.distance ?? e?.distance ?? 0) : null,
       starred: Boolean(s) || Boolean(e?.starred),
     };
   });
@@ -4014,7 +4020,7 @@ function renderSegmentsTable() {
   const countEl = document.getElementById("segmentsCount");
 
   if (allSegments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);">No segments fetched yet — use "Fetch segments" in your profile card above.</td></tr>`;
     countEl.textContent = "";
     return;
   }
@@ -4024,7 +4030,7 @@ function renderSegmentsTable() {
     (!segmentListState.starredOnly || s.starred)
   );
   if (segments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">No segments match this filter.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);">No segments match this filter.</td></tr>`;
     countEl.textContent = `0 of ${allSegments.length} segments`;
     return;
   }
@@ -4061,6 +4067,7 @@ function renderSegmentsTable() {
       <td>${prTime}</td>
       <td>${attempts}</td>
       <td>${rank}</td>
+      <td>${s.total_distance != null ? formatKm(s.total_distance) + " km" : "—"}</td>
     </tr>`;
   }).join("");
 

@@ -1877,7 +1877,7 @@
       </div>
       <div class="preset-gallery hidden" id="presetGallery"></div>
 
-      <div class="ac-tile-grid cols3" id="activityCardChecklist">
+      <div class="ac-tile-grid cols4" id="activityCardChecklist">
         <label class="ac-data-tile"><input type="checkbox" value="name" checked><span class="ac-tile"><span class="ac-tile-icon">&#127991;&#65039;</span><span class="ac-tile-text">Name</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="date" checked><span class="ac-tile"><span class="ac-tile-icon">&#128197;</span><span class="ac-tile-text">Date</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="distance" checked><span class="ac-tile"><span class="ac-tile-icon">&#128207;</span><span class="ac-tile-text">Distance</span></span></label>
@@ -1887,6 +1887,8 @@
         <label class="ac-data-tile"><input type="checkbox" value="heartrate"><span class="ac-tile"><span class="ac-tile-icon">&#10084;&#65039;</span><span class="ac-tile-text">Heart rate</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="route" checked><span class="ac-tile"><span class="ac-tile-icon">&#128506;&#65039;</span><span class="ac-tile-text">Route</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="splits"><span class="ac-tile"><span class="ac-tile-icon">&#128202;</span><span class="ac-tile-text">Splits</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="logo"><span class="ac-tile"><span class="ac-tile-icon">S</span><span class="ac-tile-text">Logo</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="typeicon" checked><span class="ac-tile"><span class="ac-tile-icon">&#127939;</span><span class="ac-tile-text">Type icon</span></span></label>
       </div>
     </div>
   </div>
@@ -1908,6 +1910,7 @@
           <button data-arrangement="grid" class="active" style="flex:1;">Grid</button>
           <button data-arrangement="row" style="flex:1;">1 line</button>
           <button data-arrangement="stacked" style="flex:1;">Stacked</button>
+          <button data-arrangement="icons" style="flex:1;">Icons</button>
         </div>
       </div>
       <div class="ac-style-panel" data-style="statsAlign">
@@ -4464,9 +4467,10 @@ function autoArrangeLayout() {
   const titleH = titleLines ? (titleLines === 2 ? 150 : 90) * activityCardLayout.title.scale : 0;
   const statCount = ["distance", "time", "pace", "elevation", "heartrate"].filter((k) => sel[k]).length;
   const arrangement = activityCardLayout.stats.arrangement || "grid";
-  const statCols = arrangement === "row" ? statCount : (arrangement === "stacked" ? 1 : Math.min(statCount, 2));
-  const statRows = arrangement === "row" ? 1 : Math.max(1, Math.ceil(statCount / Math.max(statCols, 1)));
-  const rowStep = (arrangement === "stacked" ? 90 : 130) * activityCardLayout.stats.scale * (activityCardLayout.stats.rowGap || 1);
+  const singleRow = arrangement === "row" || arrangement === "icons";
+  const statCols = singleRow ? statCount : (arrangement === "stacked" ? 1 : Math.min(statCount, 2));
+  const statRows = singleRow ? 1 : Math.max(1, Math.ceil(statCount / Math.max(statCols, 1)));
+  const rowStep = (arrangement === "icons" ? 150 : arrangement === "stacked" ? 90 : 130) * activityCardLayout.stats.scale * (activityCardLayout.stats.rowGap || 1);
   const statsH = hasStats ? Math.max(70, statRows * rowStep + 30) : 0;
 
   const blocks = [];
@@ -4522,6 +4526,17 @@ const ACTIVITY_CARD_PRESETS = [
     stats: { x: 70 / 1080, y: 130 / 1080, scale: 0.8, rotation: 0, arrangement: "stacked", rowGap: 1, colGap: 1, align: "left" },
   },
   {
+    id: "strava",
+    name: "Strava",
+    title: { x: 70 / 1080, y: 0.17, scale: 1, rotation: 0, align: "left" },
+    stats: { x: 70 / 1080, y: 0.83, scale: 1, rotation: 0, arrangement: "icons", rowGap: 1, colGap: 1, align: "left" },
+    route: { x: 0.64, y: 0.04, w: 0.30, h: 0.17, rotation: 0 },
+    splits: { x: 0.08, y: 0.25, w: 0.66, h: 0.46, rotation: 0 },
+    // also turns on the logo + icon, lightens the darkening and lifts the colours for a bright look
+    selection: { logo: true, typeicon: true, distance: true, time: true, pace: true, elevation: true },
+    style: { scrim: 0.3, watermark: false, adjust: { brightness: 0, contrast: 8, saturation: 22 } },
+  },
+  {
     id: "classic",
     name: "Classic",
     title: { x: 70 / 1080, y: 590 / 1080, scale: 1, rotation: 0, align: "left" },
@@ -4561,6 +4576,28 @@ function resetActivityCardStyle() {
 function applyActivityCardPreset(preset) {
   activityCardLayout.title = { ...preset.title };
   activityCardLayout.stats = { ...preset.stats };
+  if (preset.route) activityCardLayout.route = { ...preset.route };
+  if (preset.splits) activityCardLayout.splits = { ...preset.splits };
+  if (preset.selection) {
+    Object.entries(preset.selection).forEach(([key, on]) => {
+      document.querySelectorAll(`#activityCardChecklist input[value=${key}]`).forEach((cb) => { cb.checked = on; });
+    });
+  }
+  if (preset.style) {
+    if (preset.style.scrim != null) {
+      activityCardScrim = preset.style.scrim;
+      document.getElementById("scrimSlider").value = Math.round(preset.style.scrim * 100);
+      document.getElementById("scrimValue").textContent = `${Math.round(preset.style.scrim * 100)}%`;
+    }
+    if (preset.style.watermark != null) {
+      activityCardWatermark = preset.style.watermark;
+      document.getElementById("watermarkToggle").checked = preset.style.watermark;
+    }
+    if (preset.style.adjust) {
+      activityCardAdjust = { ...preset.style.adjust };
+      syncAdjustUI();
+    }
+  }
   document.querySelectorAll("#statsArrangementFilter button").forEach((b) => b.classList.toggle("active", b.dataset.arrangement === preset.stats.arrangement));
   document.querySelectorAll("#titleAlignFilter button").forEach((b) => b.classList.toggle("active", b.dataset.align === preset.title.align));
   document.querySelectorAll("#statsAlignFilter button").forEach((b) => b.classList.toggle("active", b.dataset.align === preset.stats.align));
@@ -4580,7 +4617,11 @@ function renderPresetGallery() {
 
   ACTIVITY_CARD_PRESETS.forEach((preset) => {
     const previewLayout = { ...activityCardLayout, title: { ...preset.title }, stats: { ...preset.stats } };
-    const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), previewLayout, currentCardStyle(), activityCardState.splits);
+    if (preset.route) previewLayout.route = { ...preset.route };
+    if (preset.splits) previewLayout.splits = { ...preset.splits };
+    const previewSelection = { ...getActivityCardSelection(), ...(preset.selection || {}) };
+    const previewStyle = { ...currentCardStyle(), ...(preset.style || {}) };
+    const canvas = drawActivityCard(activity, activityCardState.image, previewSelection, previewLayout, previewStyle, activityCardState.splits);
 
     const thumb = document.createElement("div");
     thumb.className = "preset-thumb";
@@ -4729,6 +4770,107 @@ function sampleAverageLuminance(ctx, x, y, w, h) {
   return count ? total / count : 128;
 }
 
+// ---------- vector icons for the card (drawn with canvas paths, so they stay sharp at any size) ----------
+function drawStatIcon(ctx, kind, x, y, size, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 100, size / 100);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  if (kind === "pin") {
+    ctx.moveTo(50, 96);
+    ctx.bezierCurveTo(50, 96, 16, 62, 16, 38);
+    ctx.arc(50, 38, 34, Math.PI, 0);
+    ctx.bezierCurveTo(84, 62, 50, 96, 50, 96);
+    ctx.closePath();
+    ctx.moveTo(63, 38);
+    ctx.arc(50, 38, 13, 0, Math.PI * 2);
+    ctx.fill("evenodd");
+  } else if (kind === "timer") {
+    ctx.arc(50, 58, 34, 0, Math.PI * 2);
+    ctx.moveTo(40, 10); ctx.lineTo(60, 10);
+    ctx.moveTo(50, 10); ctx.lineTo(50, 24);
+    ctx.moveTo(50, 58); ctx.lineTo(50, 38);
+    ctx.moveTo(78, 28); ctx.lineTo(84, 22);
+    ctx.stroke();
+  } else if (kind === "gauge") {
+    ctx.arc(50, 52, 40, 0, Math.PI * 2);
+    ctx.moveTo(50, 52); ctx.lineTo(74, 28);
+    ctx.moveTo(18, 52); ctx.lineTo(26, 52);
+    ctx.moveTo(50, 20); ctx.lineTo(50, 28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(50, 52, 7, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === "mountain") {
+    ctx.moveTo(6, 86); ctx.lineTo(36, 28); ctx.lineTo(56, 62); ctx.lineTo(68, 44); ctx.lineTo(94, 86);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (kind === "heart") {
+    ctx.moveTo(50, 90);
+    ctx.bezierCurveTo(8, 58, 4, 30, 28, 20);
+    ctx.bezierCurveTo(40, 15, 48, 24, 50, 32);
+    ctx.bezierCurveTo(52, 24, 60, 15, 72, 20);
+    ctx.bezierCurveTo(96, 30, 92, 58, 50, 90);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Run / hike / ride symbol shown in front of the activity name. Only Run and Ride-type
+// activities are synced, so a hike is recognised from the word in its name.
+function activityIconKind(activity) {
+  if (activity.sport === "ride" || RIDE_TYPES.has(activity.type)) return "ride";
+  if (/hik|trek/i.test(activity.name || "")) return "hike";
+  return "run";
+}
+
+function drawActivityTypeIcon(ctx, kind, x, y, size, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 100, size / 100);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 10;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const head = (cx, cy, r) => { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); };
+  const line = (pts) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); pts.slice(1).forEach((q) => ctx.lineTo(q[0], q[1])); ctx.stroke(); };
+  if (kind === "run") {
+    head(62, 14, 10);
+    line([[56, 30], [44, 56]]);                     // torso
+    line([[54, 32], [72, 46], [84, 38]]);           // front arm
+    line([[52, 34], [34, 40], [26, 54]]);           // back arm
+    line([[44, 56], [62, 68], [58, 92]]);           // front leg
+    line([[44, 56], [28, 74], [10, 70]]);           // back leg
+  } else if (kind === "hike") {
+    head(46, 14, 10);
+    line([[46, 30], [44, 58]]);                     // torso
+    ctx.fillRect(26, 28, 14, 30);                   // backpack
+    line([[46, 36], [62, 50]]);                     // arm to pole
+    line([[66, 30], [72, 96]]);                     // trekking pole
+    line([[44, 58], [58, 76], [60, 96]]);           // front leg
+    line([[44, 58], [34, 78], [28, 96]]);           // back leg
+  } else {
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.arc(20, 74, 16, 0, Math.PI * 2); ctx.stroke();   // wheels
+    ctx.beginPath(); ctx.arc(80, 74, 16, 0, Math.PI * 2); ctx.stroke();
+    line([[20, 74], [44, 74], [66, 48], [42, 48], [44, 74]]);             // frame
+    line([[66, 48], [80, 74]]);                                           // fork
+    line([[66, 48], [62, 38], [74, 38]]);                                 // handlebar
+    ctx.lineWidth = 9;
+    head(48, 14, 9);
+    line([[44, 26], [56, 44]]);                                           // rider torso
+    line([[52, 30], [68, 38]]);                                           // arm
+    line([[42, 46], [56, 58], [46, 74]]);                                 // leg
+  }
+  ctx.restore();
+}
+
 // ---------- background photo adjustments (Adjust tab) ----------
 // Pixel processing rather than ctx.filter, because canvas filters aren't reliable on iPhone Safari.
 // The adjusted copy is cached per (image, values), so dragging boxes around doesn't re-process the photo.
@@ -4869,7 +5011,7 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
       ctx.translate(-centerX, -centerY);
 
       ctx.strokeStyle = "#FF5A36";
-      ctx.lineWidth = Math.max(2, 6 * Math.min(layout.route.w / (990 / 1080), 1.6));
+      ctx.lineWidth = Math.max(5, 6 * Math.min(layout.route.w / (990 / 1080), 1.6));
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -4895,6 +5037,15 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
     if (lum > 150) { titleColor = "#12171A"; subColor = "#2A2F32"; labelColor = "#454B4E"; }
   }
 
+  // STRAVA wordmark, fixed at the top-left (text only — not the official logo artwork)
+  if (selection.logo) {
+    const k = W / 1080;
+    ctx.fillStyle = titleColor;
+    ctx.font = `italic 900 ${Math.round(66 * k)}px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText("STRAVA", 70 * k, 108 * k);
+  }
+
   // ---------- title block (name + date), independent position/rotation/align ----------
   const titleLines = [];
   if (selection.name) titleLines.push({ type: "title", text: activity.name });
@@ -4905,7 +5056,10 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
     const tx = layout.title.x * W;
     const ty = layout.title.y * H;
     const tAlign = layout.title.align || "left";
-    const maxTextWidth = tAlign === "right" ? tx - 40 : W - tx - 60;
+    const showIcon = Boolean(selection.typeicon);
+    const iconS = 72 * tsc;
+    const textShift = showIcon ? (iconS + 22 * tsc) * (tAlign === "right" ? -1 : 1) : 0; // text moves over to make room for the icon
+    const maxTextWidth = (tAlign === "right" ? tx - 40 : W - tx - 60) - Math.abs(textShift);
 
     ctx.save();
     ctx.translate(tx, ty);
@@ -4913,17 +5067,22 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
     ctx.translate(-tx, -ty);
     ctx.textAlign = tAlign;
 
+    if (showIcon) {
+      const iconX = tAlign === "right" ? tx - iconS : tx;
+      drawActivityTypeIcon(ctx, activityIconKind(activity), iconX, ty - 46 * tsc, iconS, titleColor);
+    }
+
     let ty2 = ty;
     titleLines.forEach((line) => {
       if (line.type === "title") {
         ctx.fillStyle = titleColor;
         ctx.font = `800 ${Math.round(46 * tsc)}px sans-serif`;
-        ctx.fillText(truncateCanvasText(ctx, line.text, maxTextWidth), tx, ty2);
+        ctx.fillText(truncateCanvasText(ctx, line.text, maxTextWidth), tx + textShift, ty2);
         ty2 += 44 * tsc;
       } else {
         ctx.fillStyle = subColor;
         ctx.font = `500 ${Math.round(22 * tsc)}px monospace`;
-        ctx.fillText(line.text, tx, ty2);
+        ctx.fillText(line.text, tx + textShift, ty2);
         ty2 += 50 * tsc;
       }
     });
@@ -4933,20 +5092,20 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
 
   // ---------- stats block (numeric values only), independent position/rotation/align ----------
   const bigStats = [];
-  if (selection.distance) bigStats.push({ label: "DISTANCE", value: `${formatKm(activity.distance || 0)} km` });
-  if (selection.time) bigStats.push({ label: "TIME", value: formatHoursMinutes(activity.moving_time || 0) });
+  if (selection.distance) bigStats.push({ label: "DISTANCE", icon: "pin", value: `${formatKm(activity.distance || 0)} km` });
+  if (selection.time) bigStats.push({ label: "TIME", icon: "timer", value: formatHoursMinutes(activity.moving_time || 0) });
   if (selection.pace) {
     if (activity.sport === "run" && activity.distance) {
       const minPerKm = (activity.moving_time / 60) / (activity.distance / 1000);
       const m = Math.floor(minPerKm), s = Math.round((minPerKm - m) * 60);
-      bigStats.push({ label: "PACE", value: `${m}:${String(s).padStart(2, "0")}/km` });
+      bigStats.push({ label: "PACE", icon: "gauge", value: `${m}:${String(s).padStart(2, "0")}/km` });
     } else if (activity.sport === "ride" && activity.moving_time) {
       const kmh = (activity.distance / 1000) / (activity.moving_time / 3600);
-      bigStats.push({ label: "SPEED", value: `${kmh.toFixed(1)} km/h` });
+      bigStats.push({ label: "SPEED", icon: "gauge", value: `${kmh.toFixed(1)} km/h` });
     }
   }
-  if (selection.elevation) bigStats.push({ label: "ELEVATION", value: `${Math.round(activity.total_elevation_gain || 0)} m` });
-  if (selection.heartrate && activity.average_heartrate) bigStats.push({ label: "AVG HR", value: `${Math.round(activity.average_heartrate)} bpm` });
+  if (selection.elevation) bigStats.push({ label: "ELEVATION", icon: "mountain", value: `${Math.round(activity.total_elevation_gain || 0)} m` });
+  if (selection.heartrate && activity.average_heartrate) bigStats.push({ label: "AVG HR", icon: "heart", value: `${Math.round(activity.average_heartrate)} bpm` });
 
   const sc = layout.stats.scale;
   const startX = layout.stats.x * W;
@@ -4968,7 +5127,39 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
   ctx.textAlign = align;
 
   let y = startY;
-  if (arrangement === "row") {
+  if (arrangement === "icons") {
+    // one row across the card: orange icon, small label, big white value, thin dividers between columns
+    ctx.textAlign = "left";
+    const n = Math.max(bigStats.length, 1);
+    const barW = Math.max(300, W - startX * 2);
+    const colW = barW / n;
+    const iconS = 46 * sc;
+    const pad = 26 * sc;
+    const divider = titleColor === "#12171A" ? "rgba(18,23,26,0.35)" : "rgba(255,255,255,0.35)";
+    const numberFont = (px) => `800 ${px}px sans-serif`;
+    const maxW = colW - pad - 16 * sc;
+    const valuePx = bigStats.length
+      ? Math.min(...bigStats.map((st) => fitStatNumberFont(ctx, st.value, maxW, Math.round(46 * sc), 18, numberFont)))
+      : 18; // one shared size so the values line up across columns
+    bigStats.forEach((st, i) => {
+      const cx = startX + i * colW + (i === 0 ? 0 : pad);
+      if (i > 0) {
+        ctx.strokeStyle = divider;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(startX + i * colW, startY - 4 * sc);
+        ctx.lineTo(startX + i * colW, startY + 150 * sc);
+        ctx.stroke();
+      }
+      drawStatIcon(ctx, st.icon, cx, startY, iconS, "#FF5A36");
+      ctx.fillStyle = subColor;
+      ctx.font = `600 ${Math.round(19 * sc)}px sans-serif`;
+      ctx.fillText(st.label, cx, startY + iconS + 34 * sc);
+      ctx.fillStyle = titleColor;
+      ctx.font = numberFont(valuePx);
+      ctx.fillText(st.value, cx, startY + iconS + 34 * sc + 54 * sc);
+    });
+  } else if (arrangement === "row") {
     let x = startX;
     bigStats.forEach((s) => {
       ctx.fillStyle = labelColor;
@@ -5018,7 +5209,23 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
     const minVal = Math.min(...paceVals), maxVal = Math.max(...paceVals);
     const range = maxVal - minVal || 1;
 
-    const maxRows = Math.max(1, Math.floor(boxH / (28 * Math.min(layout.splits.w / (900 / 1080), 1.4))));
+    // "KM SPLITS" heading with a hairline, like the reference card; the bars sit underneath it
+    const hdrH = Math.min(44, boxH * 0.25);
+    ctx.textAlign = "left";
+    ctx.fillStyle = titleColor;
+    ctx.font = "700 22px sans-serif";
+    ctx.fillText("KM SPLITS", boxX, boxY + hdrH * 0.6);
+    const hdrW = ctx.measureText("KM SPLITS").width;
+    ctx.strokeStyle = titleColor === "#12171A" ? "rgba(18,23,26,0.35)" : "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(boxX + hdrW + 22, boxY + hdrH * 0.6 - 7);
+    ctx.lineTo(boxX + boxW, boxY + hdrH * 0.6 - 7);
+    ctx.stroke();
+    const rowsTop = boxY + hdrH;
+    const rowsH = Math.max(30, boxH - hdrH);
+
+    const maxRows = Math.max(1, Math.floor(rowsH / (28 * Math.min(layout.splits.w / (900 / 1080), 1.4))));
     const rows = splitsData.length > maxRows
       ? splitsData.filter((_, i) => i % Math.ceil(splitsData.length / maxRows) === 0)
       : splitsData;
@@ -5026,7 +5233,7 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
       ? paceVals.filter((_, i) => i % Math.ceil(splitsData.length / maxRows) === 0)
       : paceVals;
 
-    const rowH = boxH / rows.length;
+    const rowH = rowsH / rows.length;
     const barAreaX = boxX + 64;
     const barMaxW = Math.max(20, boxW - 210);
     const numFont = Math.max(10, Math.min(22, rowH * 0.42));
@@ -5037,12 +5244,12 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
       // faster split = longer bar, regardless of run (lower=faster) or ride (higher=faster)
       const fastFrac = isRun ? (maxVal - val) / range : (val - minVal) / range;
       const barW = Math.max(barMaxW * 0.12, barMaxW * (0.2 + fastFrac * 0.8));
-      const rowY = boxY + i * rowH;
+      const rowY = rowsTop + i * rowH;
       const barH = Math.max(6, rowH * 0.5);
       const barY = rowY + (rowH - barH) / 2;
 
       ctx.textAlign = "left";
-      ctx.fillStyle = labelColor;
+      ctx.fillStyle = subColor;
       ctx.font = `600 ${Math.round(numFont)}px monospace`;
       ctx.fillText(`${s.split ?? i + 1}`, barAreaX - 46, barY + barH * 0.8);
 
@@ -5151,8 +5358,11 @@ function positionDragBoxes() {
   titleBox.style.transform = `rotate(${activityCardLayout.title.rotation || 0}deg)`;
 
   const statsBox = document.getElementById("statsDragBox");
-  const baseW = 340, baseH = 230; // visual indicator size at scale=1, in 1080-space
-  const statsW = (baseW * activityCardLayout.stats.scale / 1080) * rect.width;
+  const iconsBar = activityCardLayout.stats.arrangement === "icons";
+  const baseW = 340, baseH = iconsBar ? 160 : 230; // visual indicator size at scale=1, in 1080-space
+  const statsW = iconsBar
+    ? Math.max(0.3, 1 - 2 * activityCardLayout.stats.x) * rect.width // the icon bar spans the card between its margins
+    : (baseW * activityCardLayout.stats.scale / 1080) * rect.width;
   const statsAnchorX = activityCardLayout.stats.x * rect.width;
   statsBox.style.left = `${activityCardLayout.stats.align === "right" ? statsAnchorX - statsW : statsAnchorX}px`;
   statsBox.style.top = `${activityCardLayout.stats.y * rect.height - (baseH * activityCardLayout.stats.scale / 1080) * rect.height * 0.3}px`;

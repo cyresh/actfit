@@ -2896,6 +2896,7 @@ function renderKudosTable() {
 /* =========================================================
    Day-wise stats — Sunday to Saturday, per sport, all years or one
    ========================================================= */
+const dayStatsSort = { ride: { col: "day", dir: "asc" }, run: { col: "day", dir: "asc" } };
 function renderDayStats() {
   const sel = document.getElementById("dayStatsYear");
   if (!sel) return;
@@ -2919,8 +2920,16 @@ function renderDayStats() {
       [rows[wd], tot].forEach((r) => { r.dates.add(d); r.km += (a.distance || 0) / 1000; if (bk) r.b[bk] = (r.b[bk] || 0) + 1; });
     });
     const cells = (r) => `<td>${r.dates.size || "–"}</td><td>${r.km ? formatInt(r.km) + " km" : "–"}</td>` + defs.map(([k]) => `<td>${r.b[k] || "–"}</td>`).join("");
-    const head = `<tr><th>${label}</th><th>Active days</th><th>Distance</th>${defs.map(([, t]) => `<th>${t}</th>`).join("")}</tr>`;
-    const body = days.map((dn, i) => `<tr><td>${dn}</td>${cells(rows[i])}</tr>`).join("") + `<tr><td class="alltime">Total</td>${cells(tot)}</tr>`;
+    const st = dayStatsSort[sport];
+    const val = (r, i, col) => col === "day" ? i : col === "active" ? r.dates.size : col === "km" ? r.km : (r.b[col] || 0);
+    const order = days.map((_, i) => i).sort((x, y) => {
+      const d = val(rows[x], x, st.col) - val(rows[y], y, st.col);
+      return (st.dir === "asc" ? d : -d) || x - y;
+    });
+    const arrow = (c) => st.col === c ? (st.dir === "asc" ? " ▲" : " ▼") : "";
+    const th = (c, t) => `<th data-dsort="${c}" data-dsport="${sport}" style="cursor:pointer;" title="Click to sort">${t}${arrow(c)}</th>`;
+    const head = `<tr>${th("day", label)}${th("active", "Active days")}${th("km", "Distance")}${defs.map(([k, t]) => th(k, t)).join("")}</tr>`;
+    const body = order.map((i) => `<tr><td>${days[i]}</td>${cells(rows[i])}</tr>`).join("") + `<tr><td class="alltime">Total</td>${cells(tot)}</tr>`;
     return `<table class="year-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
   document.getElementById("dayStatsRideWrap").innerHTML = build("ride", "Ride", [["k50", "50K"], ["k100", "100K"]], bucketRide);
@@ -6293,6 +6302,16 @@ document.getElementById("bestEffortsBtn").addEventListener("click", runFetchSpli
 document.getElementById("segmentsBtn").addEventListener("click", runFetchSegments);
 document.getElementById("kudosBtn").addEventListener("click", runFetchKudos);
 document.getElementById("dayStatsYear").addEventListener("change", renderDayStats);
+["dayStatsRideWrap", "dayStatsRunWrap"].forEach((id) => {
+  document.getElementById(id).addEventListener("click", (e) => {
+    const th = e.target.closest("th[data-dsort]");
+    if (!th) return;
+    const st = dayStatsSort[th.dataset.dsport], col = th.dataset.dsort;
+    if (st.col === col) st.dir = st.dir === "asc" ? "desc" : "asc";
+    else { st.col = col; st.dir = col === "day" ? "asc" : "desc"; }
+    renderDayStats();
+  });
+});
 document.getElementById("backupBtn").addEventListener("click", downloadBackup);
 document.getElementById("restoreBtn").addEventListener("click", () => document.getElementById("restoreFile").click());
 document.getElementById("restoreBtn2").addEventListener("click", () => document.getElementById("restoreFile").click());

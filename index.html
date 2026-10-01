@@ -1392,6 +1392,10 @@
       <span id="syncStatusText">ACTIVITY SYNC</span>
       <button class="btn btn-ghost" id="syncBtn">Sync now</button>
     </div>
+    <div class="placeholder-row">
+      <span style="opacity:0.7;">New device? Load a saved backup instead of re-syncing.</span>
+      <button class="btn btn-ghost" id="restoreBtn2" type="button">Restore backup</button>
+    </div>
   </div>
 
   <!-- ============ STAGE 3: OVERVIEW DASHBOARD ============ -->
@@ -1408,6 +1412,8 @@
       <button class="tile" data-id="milestones" data-target="secMilestones"><span class="tile-icon">🏅</span>Milestones</button>
       <button class="tile" data-id="breakdown" data-target="secBreakdown"><span class="tile-icon">📉</span>Breakdown</button>
       <button class="tile" data-id="activeDays" data-target="secActiveDays"><span class="tile-icon">✅</span>Active days</button>
+      <button class="tile" data-id="dayStats" data-target="secDayStats"><span class="tile-icon">📆</span>Day-wise stats</button>
+      <button class="tile" data-id="kudos" data-target="secKudos"><span class="tile-icon">👍</span>Kudos</button>
       <button class="tile" data-id="activities" data-target="secActivities"><span class="tile-icon">📋</span>Activities</button>
       <button class="tile" data-id="prs" data-target="secPRs"><span class="tile-icon">🏆</span>Personal records</button>
       <button class="tile" data-id="routes" data-target="secRoutes"><span class="tile-icon">🗺️</span>All routes</button>
@@ -1581,6 +1587,18 @@
       <canvas id="activeDaysChart" height="220"></canvas>
     </div>
 
+    <div class="section-title-row" id="secDayStats">
+      <span class="section-title" style="margin:0;">Day-wise stats</span>
+      <select id="dayStatsYear" style="background:var(--surface);color:var(--chalk);border:1px solid var(--line);border-radius:4px;padding:7px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;"><option value="all">All years</option></select>
+    </div>
+    <div class="year-table-wrap" id="dayStatsRideWrap"></div>
+    <div class="year-table-wrap" id="dayStatsRunWrap"></div>
+
+    <div class="section-title-row" id="secKudos">
+      <span class="section-title" style="margin:0;">Kudos received</span>
+    </div>
+    <div class="year-table-wrap" id="kudosTableWrap" style="max-height:480px;overflow-y:auto;"><p class="empty-dash">No kudos data yet. Open Sync &amp; session and tap "Fetch kudos".</p></div>
+
     <div class="section-title" id="secActivities">Activities</div>
     <div class="activities-controls">
       <select id="activityTypeFilter"><option value="all">All types</option></select>
@@ -1701,6 +1719,18 @@
     </div>
     <div class="divider"></div>
     <div class="placeholder-row">
+      <span id="kudosStatusText">KUDOS (WHO GAVE THEM)</span>
+      <button class="btn btn-ghost" id="kudosBtn">Fetch kudos</button>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
+      <span id="usageText" style="opacity:0.85;">STRAVA USAGE</span>
+    </div>
+    <div class="placeholder-row">
+      <span style="opacity:0.6;font-size:11px;">Counts requests made from this device. Strava's own limit (100 per 15 min, 1000 per day) is shared with your other devices and the stats Worker.</span>
+    </div>
+    <div class="divider"></div>
+    <div class="placeholder-row">
       <span>SESSION</span>
       <button class="btn btn-ghost" id="disconnectBtn">Disconnect</button>
     </div>
@@ -1729,6 +1759,19 @@
       </div>
       <input type="text" id="polliKeyInput" placeholder="Your personal Pollinations key" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:10px;">
       <p class="ai-image-note setting-info">Generating from text alone works without a key, though the free anonymous tier can be busy. To let AI actually edit a photo you upload, add your own free key from <a href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener" style="color:var(--route);">enter.pollinations.ai/keys</a> — it's stored only on this device and used only for your own requests, never shared.</p>
+    </div>
+
+    <div class="setting-card">
+      <div class="setting-card-head">
+        <div class="setting-group-title">Data backup &amp; restore</div>
+      </div>
+      <p class="ai-image-note" style="margin:8px 0 10px;">Save your synced activities, splits, segments and kudos as one file, then restore it on another device so you don't re-fetch from Strava. Your Strava login is not included.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="backupBtn" type="button">Download backup</button>
+        <button class="btn btn-ghost" id="restoreBtn" type="button">Restore from file</button>
+      </div>
+      <input type="file" id="restoreFile" accept="application/json,.json" style="display:none;">
+      <p class="ai-image-note" id="backupMsg" style="margin-top:8px;"></p>
     </div>
 
     <div class="setting-card">
@@ -2020,6 +2063,9 @@ const AI_IMAGE_USAGE_KEY = "strava_dash_ai_image_usage"; // { date: "YYYY-MM-DD"
 const AI_IMAGE_DAILY_LIMIT = 2; // self-imposed cap, keyed to this device/browser, to stay respectful of the free image service
 const SEGMENTS_KEY = "strava_dash_segments"; // { [segmentId]: {...summary + athlete stats} } — starred segments only
 const SEGMENT_EFFORTS_KEY = "strava_dash_segment_efforts"; // { [segmentId]: {id, name, activity_type, distance, average_grade, starred, attempts, best_time, best_date, last_date} } — every segment you have attempted, aggregated from your activities
+const KUDOS_KEY = "strava_dash_kudos"; // { [activityId]: ["Name", ...] }
+const KUDOS_DONE_KEY = "strava_dash_kudos_done"; // array of activity ids whose kudos were fetched
+const REQ_LOG_KEY = "strava_dash_req_log"; // device-local request timestamps (not backed up)
 const SEGMENT_SCAN_DONE_KEY = "strava_dash_segment_scan_done"; // array of activity ids already scanned for segment efforts (resumable)
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24h
 const STARRED_REFRESH_MS = 24 * 60 * 60 * 1000; // starred segments fetched less than this long ago are NOT fetched again (saves Strava requests)
@@ -2434,6 +2480,7 @@ async function syncActivities(onProgress, forceFullResync = false) {
         max_speed: act.max_speed,
         average_heartrate: act.average_heartrate ?? null,
         max_heartrate: act.max_heartrate ?? null,
+        kudos_count: act.kudos_count ?? null,
         map_summary_polyline: act.map?.summary_polyline || null,
       };
     }
@@ -2665,6 +2712,256 @@ async function scanSegmentEfforts(onProgress, onTick) {
 }
 
 /* =========================================================
+   Strava request meter — counts this device's API calls and, when
+   Strava exposes its usage headers, shows the account-wide numbers.
+   ========================================================= */
+let reqLog = [];
+try { reqLog = JSON.parse(localStorage.getItem(REQ_LOG_KEY) || "[]"); } catch (e) { reqLog = []; }
+let stravaUsageHeader = null; // { at, u15, l15, uDay, lDay }
+let reqSaveTimer = null;
+function noteStravaRequest(res) {
+  const now = Date.now();
+  reqLog.push(now);
+  reqLog = reqLog.filter((t) => now - t < 86400000);
+  if (!reqSaveTimer) reqSaveTimer = setTimeout(() => {
+    reqSaveTimer = null;
+    try { localStorage.setItem(REQ_LOG_KEY, JSON.stringify(reqLog)); } catch (e) {}
+  }, 2000);
+  try {
+    const u = (res.headers.get("X-ReadRateLimit-Usage") || res.headers.get("X-RateLimit-Usage") || "").split(",").map(Number);
+    const l = (res.headers.get("X-ReadRateLimit-Limit") || res.headers.get("X-RateLimit-Limit") || "").split(",").map(Number);
+    if (u.length === 2 && l.length === 2 && !u.some(isNaN) && !l.some(isNaN)) {
+      stravaUsageHeader = { at: now, u15: u[0], uDay: u[1], l15: l[0], lDay: l[1] };
+    }
+  } catch (e) {}
+  renderUsage();
+}
+const _nativeFetch = window.fetch.bind(window);
+window.fetch = async function (input, init) {
+  const res = await _nativeFetch(input, init);
+  try {
+    const url = typeof input === "string" ? input : (input && input.url) || "";
+    if (url.indexOf("strava.com/api/") !== -1) noteStravaRequest(res);
+  } catch (e) {}
+  return res;
+};
+function renderUsage() {
+  const el = document.getElementById("usageText");
+  if (!el) return;
+  const now = Date.now();
+  const n15 = reqLog.filter((t) => now - t < 900000).length;
+  const nDay = reqLog.filter((t) => now - t < 86400000).length;
+  let txt = `THIS DEVICE: ${n15}/100 IN 15 MIN · ${nDay}/1000 TODAY`;
+  if (stravaUsageHeader && now - stravaUsageHeader.at < 900000) {
+    const h = stravaUsageHeader;
+    txt = `STRAVA TOTAL: ${h.u15}/${h.l15} IN 15 MIN · ${h.uDay}/${h.lDay} TODAY\n` + txt;
+  }
+  // Strava's 15-minute window resets on the quarter hour (:00 :15 :30 :45); the daily one at midnight UTC
+  const toNext = 900000 - (now % 900000);
+  const mm = Math.floor(toNext / 60000), ss = Math.floor((toNext % 60000) / 1000);
+  txt += `\nNEXT 15-MIN RESET IN ${mm}:${String(ss).padStart(2, "0")}`;
+  const toDay = 86400000 - (now % 86400000);
+  txt += ` · DAILY RESET IN ${Math.floor(toDay / 3600000)}h ${Math.floor((toDay % 3600000) / 60000)}m`;
+  el.style.whiteSpace = "pre-line";
+  el.textContent = txt;
+}
+setInterval(renderUsage, 1000);
+document.addEventListener("DOMContentLoaded", renderUsage);
+
+/* =========================================================
+   Kudos — who gave kudos, per activity (one request per activity,
+   resumable; activities with 0 kudos are skipped).
+   ========================================================= */
+function loadKudos() { try { return JSON.parse(localStorage.getItem(KUDOS_KEY) || "{}"); } catch (e) { return {}; } }
+function saveKudos(o) { localStorage.setItem(KUDOS_KEY, JSON.stringify(o)); }
+function loadKudosDone() { try { return new Set(JSON.parse(localStorage.getItem(KUDOS_DONE_KEY) || "[]")); } catch (e) { return new Set(); } }
+function saveKudosDone(set) { localStorage.setItem(KUDOS_DONE_KEY, JSON.stringify(Array.from(set))); }
+let kudosStopRequested = false;
+
+function kudosPending() {
+  const acts = Object.values(loadActivities());
+  const done = loadKudosDone();
+  const store = loadKudos();
+  const list = acts.filter((a) => {
+    if (a.kudos_count === 0) return false;
+    if (!done.has(a.id)) return true;
+    return a.kudos_count != null && (store[a.id] || []).length < a.kudos_count; // new kudos since last fetch
+  });
+  list.sort((x, y) => (y.start_date || "").localeCompare(x.start_date || ""));
+  return { acts, pending: list, done };
+}
+
+async function fetchKudosForActivity(id, onProgress) {
+  const out = [];
+  for (let page = 1; ; page++) {
+    const token = await getValidAccessToken();
+    if (!token) throw new Error("Not connected");
+    const res = await fetch(`https://www.strava.com/api/v3/activities/${id}/kudos?per_page=200&page=${page}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 429) {
+      const wait = parseInt(res.headers.get("Retry-After") || "900", 10);
+      onProgress?.(`Rate limit reached, waiting ${Math.ceil(wait / 60)} min (progress is saved)…`);
+      await sleep(wait * 1000);
+      page--;
+      continue;
+    }
+    if (!res.ok) throw new Error(`Kudos fetch failed (${id}): ${res.status}`);
+    const arr = await res.json();
+    arr.forEach((k) => out.push(`${k.firstname || ""} ${k.lastname || ""}`.trim() || "Unknown"));
+    if (arr.length < 200) break;
+  }
+  return out;
+}
+
+async function fetchAllKudos(onProgress) {
+  const { acts, pending, done } = kudosPending();
+  const store = loadKudos();
+  kudosStopRequested = false;
+  let n = 0;
+  for (const a of pending) {
+    if (kudosStopRequested) break;
+    onProgress?.(`Fetching kudos… ${n}/${pending.length}`);
+    store[a.id] = await fetchKudosForActivity(a.id, onProgress);
+    done.add(a.id);
+    saveKudos(store);
+    saveKudosDone(done);
+    n++;
+    if (n % 10 === 0) renderKudosTable();
+    await sleep(200);
+  }
+  return { stopped: kudosStopRequested, fetched: n, remaining: pending.length - n };
+}
+
+function refreshKudosStatus() {
+  const el = document.getElementById("kudosStatusText");
+  if (!el) return;
+  const { pending } = kudosPending();
+  const have = Object.keys(loadKudos()).length;
+  el.textContent = have === 0 ? "KUDOS (WHO GAVE THEM)" : pending.length ? `KUDOS — ${pending.length} activities left` : "KUDOS — up to date";
+}
+
+async function runFetchKudos() {
+  const btn = document.getElementById("kudosBtn");
+  const statusText = document.getElementById("kudosStatusText");
+  if (btn.dataset.running === "true") { kudosStopRequested = true; btn.textContent = "Stopping…"; btn.disabled = true; return; }
+  btn.dataset.running = "true";
+  btn.textContent = "Stop";
+  try {
+    const r = await fetchAllKudos((m) => { statusText.innerHTML = `<span class="spinner"></span>${m}`; });
+    renderKudosTable();
+    refreshKudosStatus();
+    if (r.stopped) statusText.textContent = `PAUSED — ${r.remaining} left, tap Fetch kudos to resume`;
+  } catch (e) {
+    statusText.textContent = "Kudos fetch failed — check connection and try again";
+  } finally {
+    btn.dataset.running = "false";
+    btn.disabled = false;
+    btn.textContent = "Fetch kudos";
+  }
+}
+
+function renderKudosTable() {
+  const wrap = document.getElementById("kudosTableWrap");
+  if (!wrap) return;
+  const store = loadKudos();
+  const acts = loadActivities();
+  const byName = {}; const yearSet = new Set();
+  Object.keys(store).forEach((id) => {
+    const a = acts[id]; if (!a) return;
+    const y = String(a.start_date_local).slice(0, 4);
+    yearSet.add(y);
+    (store[id] || []).forEach((nm) => {
+      const r = byName[nm] || (byName[nm] = { total: 0 });
+      r[y] = (r[y] || 0) + 1; r.total++;
+    });
+  });
+  const names = Object.keys(byName).sort((a, b) => byName[b].total - byName[a].total || a.localeCompare(b));
+  if (!names.length) {
+    wrap.innerHTML = `<p class="empty-dash">No kudos data yet. Open Sync &amp; session and tap "Fetch kudos".</p>`;
+    return;
+  }
+  const years = Array.from(yearSet).sort((a, b) => b - a);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const head = `<tr><th>Name</th>${years.map((y) => `<th>${y}</th>`).join("")}<th class="alltime">Total</th></tr>`;
+  const body = names.map((nm) => `<tr><td>${esc(nm)}</td>${years.map((y) => `<td>${byName[nm][y] || "–"}</td>`).join("")}<td class="alltime">${byName[nm].total}</td></tr>`).join("");
+  wrap.innerHTML = `<table class="year-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+/* =========================================================
+   Day-wise stats — Sunday to Saturday, per sport, all years or one
+   ========================================================= */
+function renderDayStats() {
+  const sel = document.getElementById("dayStatsYear");
+  if (!sel) return;
+  const all = Object.values(loadActivities());
+  const years = Array.from(new Set(all.map((a) => String(a.start_date_local).slice(0, 4)))).sort((a, b) => b - a);
+  const cur = sel.value || "all";
+  sel.innerHTML = `<option value="all">All years</option>` + years.map((y) => `<option value="${y}">${y}</option>`).join("");
+  sel.value = years.includes(cur) ? cur : "all";
+  const scope = sel.value === "all" ? all : all.filter((a) => String(a.start_date_local).slice(0, 4) === sel.value);
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  function build(sport, label, defs, bucketFn) {
+    const acts = scope.filter((a) => a.sport === sport);
+    if (!acts.length) return `<p class="empty-dash">No ${label.toLowerCase()} data for this period.</p>`;
+    const rows = days.map(() => ({ dates: new Set(), km: 0, b: {} }));
+    const tot = { dates: new Set(), km: 0, b: {} };
+    acts.forEach((a) => {
+      const d = String(a.start_date_local).slice(0, 10);
+      const wd = new Date(d + "T00:00:00Z").getUTCDay();
+      const bk = bucketFn(a.distance);
+      [rows[wd], tot].forEach((r) => { r.dates.add(d); r.km += (a.distance || 0) / 1000; if (bk) r.b[bk] = (r.b[bk] || 0) + 1; });
+    });
+    const cells = (r) => `<td>${r.dates.size || "–"}</td><td>${r.km ? formatInt(r.km) + " km" : "–"}</td>` + defs.map(([k]) => `<td>${r.b[k] || "–"}</td>`).join("");
+    const head = `<tr><th>${label}</th><th>Active days</th><th>Distance</th>${defs.map(([, t]) => `<th>${t}</th>`).join("")}</tr>`;
+    const body = days.map((dn, i) => `<tr><td>${dn}</td>${cells(rows[i])}</tr>`).join("") + `<tr><td class="alltime">Total</td>${cells(tot)}</tr>`;
+    return `<table class="year-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+  document.getElementById("dayStatsRideWrap").innerHTML = build("ride", "Ride", [["k50", "50K"], ["k100", "100K"]], bucketRide);
+  document.getElementById("dayStatsRunWrap").innerHTML = build("run", "Run", [["k10", "10K"], ["hm", "HM"], ["k32", "30K"], ["fm", "FM"]], bucketRun);
+}
+
+/* =========================================================
+   Backup & restore (everything except login, API keys and the request log)
+   ========================================================= */
+function backupMessage(t) { const m = document.getElementById("backupMsg"); if (m) m.textContent = t; }
+function downloadBackup() {
+  const skip = new Set([STORAGE_KEY, POLLI_KEY_STORAGE, REQ_LOG_KEY]);
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.indexOf("strava_dash_") === 0 && !skip.has(k)) data[k] = localStorage.getItem(k);
+  }
+  const blob = new Blob([JSON.stringify({ app: "strava-dash-backup", version: 1, saved_at: new Date().toISOString(), data })], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `strava-dash-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  backupMessage(`Saved ${Object.keys(data).length} items. Keep the file somewhere you can reach from your other device.`);
+}
+function restoreBackupFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (obj.app !== "strava-dash-backup" || !obj.data) throw new Error("bad file");
+      const n = Object.keys(obj.data).length;
+      if (!confirm(`Restore ${n} items from this backup (saved ${String(obj.saved_at || "").slice(0, 10)})? This replaces the synced data on this device. Your Strava login is kept.`)) return;
+      Object.keys(obj.data).forEach((k) => { if (k.indexOf("strava_dash_") === 0 && k !== STORAGE_KEY && k !== POLLI_KEY_STORAGE) localStorage.setItem(k, obj.data[k]); });
+      backupMessage("Restored. Reloading…");
+      setTimeout(() => location.reload(), 600);
+    } catch (e) {
+      backupMessage("That file isn't a valid Strava Dash backup.");
+      alert("That file isn't a valid Strava Dash backup.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* =========================================================
    UI state
    ========================================================= */
 function showLanding(errorMsg) {
@@ -2699,6 +2996,7 @@ function showConnected(athlete) {
 
   renderSegmentsTable();
   refreshSegmentsStatus();
+  refreshKudosStatus();
 }
 
 function refreshStatsFromCache() {
@@ -3605,6 +3903,8 @@ function renderYearTables() {
   }
 
   renderRunSplitsTable();
+  renderDayStats();
+  renderKudosTable();
 }
 
 function formatSplitTime(seconds) {
@@ -5984,6 +6284,13 @@ document.getElementById("fullResyncLink").addEventListener("click", (e) => {
 });
 document.getElementById("bestEffortsBtn").addEventListener("click", runFetchSplits);
 document.getElementById("segmentsBtn").addEventListener("click", runFetchSegments);
+document.getElementById("kudosBtn").addEventListener("click", runFetchKudos);
+document.getElementById("dayStatsYear").addEventListener("change", renderDayStats);
+document.getElementById("backupBtn").addEventListener("click", downloadBackup);
+document.getElementById("restoreBtn").addEventListener("click", () => document.getElementById("restoreFile").click());
+document.getElementById("restoreBtn2").addEventListener("click", () => document.getElementById("restoreFile").click());
+document.getElementById("restoreFile").addEventListener("change", (e) => { restoreBackupFile(e.target.files[0]); e.target.value = ""; });
+renderUsage();
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 document.getElementById("resetMapBtn").addEventListener("click", resetRouteMapView);
 document.getElementById("downloadCardBtn").addEventListener("click", downloadStatsCard);
@@ -6006,7 +6313,7 @@ function tagDashboardSections() {
   const dash = document.getElementById("dashboard");
   const skip = new Set(["tileIndex", "singleHint"]);
   const starts = new Set(["secOverview", "secVolume", "secPace", "secCalendar", "secRideYear", "secRunYear",
-    "secSplits", "secMilestones", "secBreakdown", "secActiveDays", "secActivities", "secPRs", "secRoutes", "secSegments"]);
+    "secSplits", "secMilestones", "secBreakdown", "secActiveDays", "secDayStats", "secKudos", "secActivities", "secPRs", "secRoutes", "secSegments"]);
   let current = "secOverview";
   Array.from(dash.children).forEach((el) => {
     if (skip.has(el.id)) return;
@@ -6046,7 +6353,7 @@ function refreshAfterReveal() {
 const TILE_ORDER_KEY = "strava_dash_tile_order";
 // Fixed, so "Reset" always has a real default to go back to \u2014 never derived
 // from the current (possibly already reordered) DOM.
-const DEFAULT_TILE_ORDER = ["sync", "overview", "volume", "pace", "calendar", "rideYear", "runYear", "splits", "milestones", "breakdown", "activeDays", "activities", "prs", "routes", "segments", "statsApp", "settings"];
+const DEFAULT_TILE_ORDER = ["sync", "overview", "volume", "pace", "calendar", "rideYear", "runYear", "splits", "milestones", "breakdown", "activeDays", "dayStats", "kudos", "activities", "prs", "routes", "segments", "statsApp", "settings"];
 function getDefaultTileOrder() {
   const present = new Set(Array.from(document.querySelectorAll("#tileIndex .tile")).map((t) => t.dataset.id));
   return DEFAULT_TILE_ORDER.filter((id) => present.has(id));

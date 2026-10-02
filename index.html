@@ -812,6 +812,10 @@
   table.activities-table tbody tr:hover td{ background:rgba(255,255,255,0.03); }
   /* Segments: let long names wrap so every column fits on desktop without sideways scrolling */
   table#segmentsTable{ min-width:0; }
+  /* Kudos: keep the year and total columns next to the name instead of pushed to the far right */
+  table.kudos-table{ width:max-content; min-width:0; max-width:100%; }
+  table.kudos-table th:first-child, table.kudos-table td:first-child{ min-width:220px; }
+  table.kudos-table th:not(:first-child), table.kudos-table td:not(:first-child){ min-width:76px; padding-left:20px; padding-right:20px; }
   table#segmentsTable td:first-child{ white-space:normal; word-break:break-word; min-width:200px; width:38%; }
   table#segmentsTable td:nth-child(2){ max-width:none; overflow:visible; }
   .hr-cell{ border-radius:3px; padding:4px 8px !important; color:#12171A; font-weight:600; }
@@ -1936,6 +1940,7 @@
         <label class="ac-data-tile"><input type="checkbox" value="heartrate"><span class="ac-tile"><span class="ac-tile-icon">&#10084;&#65039;</span><span class="ac-tile-text">Heart rate</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="route" checked><span class="ac-tile"><span class="ac-tile-icon">&#128506;&#65039;</span><span class="ac-tile-text">Route</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="splits"><span class="ac-tile"><span class="ac-tile-icon">&#128202;</span><span class="ac-tile-text">Splits</span></span></label>
+        <label class="ac-data-tile"><input type="checkbox" value="laps"><span class="ac-tile"><span class="ac-tile-icon">&#128200;</span><span class="ac-tile-text">Lap splits</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="logo"><span class="ac-tile"><span class="ac-tile-icon">S</span><span class="ac-tile-text">Logo</span></span></label>
         <label class="ac-data-tile"><input type="checkbox" value="typeicon" checked><span class="ac-tile"><span class="ac-tile-icon">&#127939;</span><span class="ac-tile-text">Type icon</span></span></label>
       </div>
@@ -2125,6 +2130,52 @@ function saveBestEffortsDone(set) {
   localStorage.setItem(BEST_EFFORTS_DONE_KEY, JSON.stringify(Array.from(set)));
 }
 
+const ACTIVITY_LAPS_KEY = "strava_dash_activity_laps"; // { [activityId]: [{lap, from, to, distance, moving_time, elapsed_time, elevation_difference, average_speed}] }
+function loadActivityLapsCache() {
+  try { return JSON.parse(localStorage.getItem(ACTIVITY_LAPS_KEY) || "{}"); } catch (e) { return {}; }
+}
+function saveActivityLapsCache(obj) { localStorage.setItem(ACTIVITY_LAPS_KEY, JSON.stringify(obj)); }
+// Lap rows from the watch (intervals, manual laps, auto laps). Each lap keeps its start/end distance
+// in km so the card can show "1.0–1.8 km" style labels. Uses the same detail response as splits.
+function mapLaps(detail) {
+  let run = 0;
+  return (detail.laps || []).map((l, i) => {
+    const from = run / 1000; run += l.distance || 0;
+    return {
+      lap: l.lap_index ?? i + 1,
+      from, to: run / 1000,
+      distance: l.distance,
+      moving_time: l.moving_time,
+      elapsed_time: l.elapsed_time,
+      elevation_difference: l.total_elevation_gain ?? null,
+      average_speed: l.average_speed,
+    };
+  });
+}
+// One detail request fills both caches, so choosing Splits or Lap splits never costs two calls.
+function cacheDetailForCard(activityId, detail) {
+  const laps = loadActivityLapsCache();
+  laps[activityId] = mapLaps(detail);
+  saveActivityLapsCache(laps);
+  const sp = loadActivitySplitsCache();
+  if (!sp[activityId]) {
+    sp[activityId] = (detail.splits_metric || []).map((x) => ({
+      split: x.split, distance: x.distance, moving_time: x.moving_time, elapsed_time: x.elapsed_time,
+      elevation_difference: x.elevation_difference, average_speed: x.average_speed,
+    }));
+    saveActivitySplitsCache(sp);
+  }
+}
+async function ensureLapsForActivity(activityId) {
+  const cache = loadActivityLapsCache();
+  if (cache[activityId]) return cache[activityId];
+  const accessToken = await getValidAccessToken();
+  if (!accessToken) throw new Error("Not connected to Strava");
+  const detail = await fetchActivityDetail(accessToken, activityId);
+  cacheDetailForCard(activityId, detail);
+  return loadActivityLapsCache()[activityId] || [];
+}
+
 function loadActivitySplitsCache() {
   const raw = localStorage.getItem(ACTIVITY_SPLITS_KEY);
   return raw ? JSON.parse(raw) : {};
@@ -2150,6 +2201,8 @@ async function ensureSplitsForActivity(activityId) {
   }));
   cache[activityId] = splits;
   saveActivitySplitsCache(cache);
+  const lapsCache = loadActivityLapsCache();
+  if (!lapsCache[activityId]) { lapsCache[activityId] = mapLaps(detail); saveActivityLapsCache(lapsCache); }
   return splits;
 }
 
@@ -2890,7 +2943,7 @@ function renderKudosTable() {
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const head = `<tr><th>Name</th>${years.map((y) => `<th>${y}</th>`).join("")}<th class="alltime">Total</th></tr>`;
   const body = names.map((nm) => `<tr><td>${esc(nm)}</td>${years.map((y) => `<td>${byName[nm][y] || "–"}</td>`).join("")}<td class="alltime">${byName[nm].total}</td></tr>`).join("");
-  wrap.innerHTML = `<table class="year-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  wrap.innerHTML = `<table class="year-table kudos-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
 /* =========================================================
@@ -4725,7 +4778,8 @@ document.getElementById("milestoneDownloadBtn").addEventListener("click", () => 
    Stage 10: per-activity downloadable card (image picker +
    custom stat checklist + route line drawn above the stats)
    ========================================================= */
-let activityCardState = { activityId: null, image: null, splits: null, uploadedFile: null }; // image = HTMLImageElement or null; uploadedFile = raw File behind it (needed for AI photo edits); splits = per-km array or null
+let activityCardState = { activityId: null, image: null, splits: null, laps: null, uploadedFile: null };
+function cardRowsData(sel) { return sel && sel.laps ? activityCardState.laps : activityCardState.splits; } // image = HTMLImageElement or null; uploadedFile = raw File behind it (needed for AI photo edits); splits = per-km array or null
 
 // Card canvas is always 1080px wide; only the height changes with the chosen
 // aspect ratio, so every x-fraction in the layout keeps the same meaning
@@ -4800,7 +4854,7 @@ function updateDragBoxVisibility() {
   const sel = getActivityCardSelection();
   const hasTitle = sel.name || sel.date;
   const hasStats = sel.distance || sel.time || sel.pace || sel.elevation || sel.heartrate;
-  const vis = { titleDragBox: hasTitle, statsDragBox: hasStats, routeDragBox: sel.route, splitsDragBox: sel.splits };
+  const vis = { titleDragBox: hasTitle, statsDragBox: hasStats, routeDragBox: sel.route, splitsDragBox: (sel.splits || sel.laps) };
   Object.keys(vis).forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle("box-hidden", !vis[id]);
@@ -4817,7 +4871,7 @@ function autoArrangeLayout() {
   const hasRoute = Boolean(sel.route);
   const hasTitle = Boolean(sel.name || sel.date);
   const hasStats = Boolean(sel.distance || sel.time || sel.pace || sel.elevation || sel.heartrate);
-  const hasSplits = Boolean(sel.splits);
+  const hasSplits = Boolean(sel.splits || sel.laps);
   if (!hasRoute && !hasTitle && !hasStats && !hasSplits) return;
 
   const titleLines = (sel.name ? 1 : 0) + (sel.date ? 1 : 0);
@@ -4978,7 +5032,7 @@ function renderPresetGallery() {
     if (preset.splits) previewLayout.splits = { ...preset.splits };
     const previewSelection = { ...getActivityCardSelection(), ...(preset.selection || {}) };
     const previewStyle = { ...currentCardStyle(), ...(preset.style || {}) };
-    const canvas = drawActivityCard(activity, activityCardState.image, previewSelection, previewLayout, previewStyle, activityCardState.splits);
+    const canvas = drawActivityCard(activity, activityCardState.image, previewSelection, previewLayout, previewStyle, cardRowsData(previewSelection));
 
     const thumb = document.createElement("div");
     thumb.className = "preset-thumb";
@@ -5007,7 +5061,7 @@ function renderPresetGallery() {
 function openActivityCardModal(activityId) {
   const activity = loadActivities()[activityId];
   if (!activity) return;
-  activityCardState = { activityId, image: null, splits: null, uploadedFile: null };
+  activityCardState = { activityId, image: null, splits: null, laps: null, uploadedFile: null };
   resetActivityCardStyle();
   autoArrangeLayout(); // stack whatever's on by default so nothing overlaps at first glance
   document.getElementById("activityCardImageInput").value = "";
@@ -5078,7 +5132,7 @@ function exportCardFilename(activity) {
 async function shareOrDownloadCard(action) {
   const activity = loadActivities()[activityCardState.activityId];
   if (!activity) return;
-  const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout, currentCardStyle(), activityCardState.splits);
+  const canvas = drawActivityCard(activity, activityCardState.image, getActivityCardSelection(), activityCardLayout, currentCardStyle(), cardRowsData(getActivityCardSelection()));
   const filename = exportCardFilename(activity);
 
   canvas.toBlob(async (blob) => {
@@ -5547,7 +5601,8 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
   ctx.restore();
 
   // ---------- splits chart: one horizontal bar per km, longer bar = faster ----------
-  if (selection.splits && splitsData && splitsData.length) {
+  if ((selection.splits || selection.laps) && splitsData && splitsData.length) {
+    const lapMode = Boolean(selection.laps);
     const boxX = layout.splits.x * W, boxY = layout.splits.y * H;
     const boxW = layout.splits.w * W, boxH = layout.splits.h * H;
     const centerX = boxX + boxW / 2, centerY = boxY + boxH / 2;
@@ -5571,8 +5626,9 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
     ctx.textAlign = "left";
     ctx.fillStyle = titleColor;
     ctx.font = "700 22px sans-serif";
-    ctx.fillText("KM SPLITS", boxX, boxY + hdrH * 0.6);
-    const hdrW = ctx.measureText("KM SPLITS").width;
+    const caption = lapMode ? `LAP SPLITS · ${splitsData.length} LAPS` : "KM SPLITS";
+    ctx.fillText(caption, boxX, boxY + hdrH * 0.6);
+    const hdrW = ctx.measureText(caption).width;
     ctx.strokeStyle = titleColor === "#12171A" ? "rgba(18,23,26,0.35)" : "rgba(255,255,255,0.4)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -5591,8 +5647,10 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
       : paceVals;
 
     const rowH = rowsH / rows.length;
-    const barAreaX = boxX + 64;
-    const barMaxW = Math.max(20, boxW - 210);
+    const labelW = lapMode ? 190 : 64;
+    const barAreaX = boxX + labelW;
+    const barMaxW = Math.max(20, boxW - labelW - (lapMode ? 260 : 146));
+    const fmtKm = (x) => String(Number((x || 0).toFixed(2)));
     const numFont = Math.max(10, Math.min(22, rowH * 0.42));
     const labelFont = Math.max(10, Math.min(20, rowH * 0.38));
 
@@ -5608,7 +5666,12 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
       ctx.textAlign = "left";
       ctx.fillStyle = subColor;
       ctx.font = `600 ${Math.round(numFont)}px monospace`;
-      ctx.fillText(`${s.split ?? i + 1}`, barAreaX - 46, barY + barH * 0.8);
+      if (lapMode) {
+        ctx.font = `600 ${Math.round(Math.min(numFont, 20))}px monospace`;
+        ctx.fillText(`${fmtKm(s.from)}–${fmtKm(s.to)}`, boxX, barY + barH * 0.8);
+      } else {
+        ctx.fillText(`${s.split ?? i + 1}`, barAreaX - 46, barY + barH * 0.8);
+      }
 
       ctx.fillStyle = "#FF5A36";
       ctx.fillRect(barAreaX, barY, barW, barH);
@@ -5618,7 +5681,8 @@ function drawActivityCard(activity, image, selection, layout, style, splitsData)
       const valueLabel = isRun
         ? (() => { const m = Math.floor(val / 60), sec = Math.round(val % 60); return `${m}:${String(sec).padStart(2, "0")}/km`; })()
         : `${val.toFixed(1)} km/h`;
-      ctx.fillText(valueLabel, barAreaX + barW + 14, barY + barH * 0.8);
+      const fullLabel = lapMode ? `${valueLabel} · ${fmtKm(s.distance / 1000)} km` : valueLabel;
+      ctx.fillText(fullLabel, barAreaX + barW + 14, barY + barH * 0.8);
     });
 
     ctx.textAlign = "left";
@@ -5656,7 +5720,7 @@ function redrawActivityCardPreview() {
   const activity = loadActivities()[activityCardState.activityId];
   if (!activity) return;
   const selection = getActivityCardSelection();
-  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection, activityCardLayout, currentCardStyle(), activityCardState.splits);
+  const sourceCanvas = drawActivityCard(activity, activityCardState.image, selection, activityCardLayout, currentCardStyle(), cardRowsData(selection));
   const previewCanvas = document.getElementById("activityCardPreview");
   if (previewCanvas.width !== sourceCanvas.width || previewCanvas.height !== sourceCanvas.height) {
     previewCanvas.width = sourceCanvas.width;
@@ -5993,6 +6057,8 @@ function initActivityCardModal() {
     if (cb.value === "splits") {
       cb.addEventListener("change", async (e) => {
         if (!e.target.checked) { redrawActivityCardPreview(); return; }
+        const lapsCb = document.querySelector('#activityCardChecklist input[value="laps"]');
+        if (lapsCb) lapsCb.checked = false; // splits and lap splits share one box, so only one at a time
         const label = e.target.closest("label");
         const textNode = label.querySelector(".ac-tile-text") || label.lastChild;
         const originalText = textNode.textContent;
@@ -6006,6 +6072,31 @@ function initActivityCardModal() {
           }
         } catch (err) {
           alert("Couldn't fetch splits: " + err.message);
+          e.target.checked = false;
+        } finally {
+          e.target.disabled = false;
+          textNode.textContent = originalText;
+          redrawActivityCardPreview();
+        }
+      });
+    } else if (cb.value === "laps") {
+      cb.addEventListener("change", async (e) => {
+        if (!e.target.checked) { redrawActivityCardPreview(); return; }
+        const splitsCb = document.querySelector('#activityCardChecklist input[value="splits"]');
+        if (splitsCb) splitsCb.checked = false;
+        const label = e.target.closest("label");
+        const textNode = label.querySelector(".ac-tile-text") || label.lastChild;
+        const originalText = textNode.textContent;
+        e.target.disabled = true;
+        textNode.textContent = "Loading…";
+        try {
+          activityCardState.laps = await ensureLapsForActivity(activityCardState.activityId);
+          if (!activityCardState.laps || activityCardState.laps.length < 2) {
+            alert("Strava has no separate laps for this activity (it was recorded as one lap). Use the Splits option for per-km splits.");
+            e.target.checked = false;
+          }
+        } catch (err) {
+          alert("Couldn't fetch laps: " + err.message);
           e.target.checked = false;
         } finally {
           e.target.disabled = false;

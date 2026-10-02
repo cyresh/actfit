@@ -2343,7 +2343,7 @@ function connect() {
     client_id: CONFIG.STRAVA_CLIENT_ID,
     redirect_uri: CONFIG.REDIRECT_URI,
     response_type: "code",
-    approval_prompt: "auto",
+    approval_prompt: "force", // always show the permission screen so the right boxes can be ticked
     scope: CONFIG.SCOPE,
   });
   window.location.href = `https://www.strava.com/oauth/authorize?${params.toString()}`;
@@ -4369,6 +4369,18 @@ async function boot() {
   if (code) {
     // clean the URL so the code isn't left sitting in history
     window.history.replaceState({}, document.title, CONFIG.REDIRECT_URI);
+    // Strava reports the permissions actually granted. Refuse a login that can't read all
+    // activities or write descriptions, instead of saving one that makes the stats Worker fail.
+    const granted = (url.searchParams.get("scope") || "").split(",");
+    if (url.searchParams.has("scope")) {
+      const missing = [];
+      if (!granted.includes("activity:read_all")) missing.push("view your activities (including private ones)");
+      if (!granted.includes("activity:write")) missing.push("upload or update your activities");
+      if (missing.length) {
+        showLanding("That login was NOT saved: the box to " + missing.join(" and ") + " was left unticked on Strava's screen. Tap Connect again and keep every box ticked.");
+        return;
+      }
+    }
     try {
       const data = await exchangeCodeForTokens(code);
       showConnected(data.athlete);
